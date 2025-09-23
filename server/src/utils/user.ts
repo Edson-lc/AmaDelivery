@@ -1,0 +1,18 @@
+export const publicUserSelect = {
+  id: true,
+  email: true,
+  fullName: true,
+  role: true,
+  tipoUsuario: true,
+  nome: true,
+  sobrenome: true,
+  telefone: true,
+  fotoUrl: true,
+  status: true,
+  restaurantId: true,
+  consentimentoDados: true,
+  enderecosSalvos: true,
+  metodosPagamento: true,
+  createdDate: true,
+  updatedDate: true,
+} as const;

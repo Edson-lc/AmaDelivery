@@ -1,0 +1,277 @@
+// Prisma schema representing AmaEats PostgreSQL structure
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String    @id @default(uuid()) @db.Uuid
+  createdDate          DateTime  @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate          DateTime  @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy            String?   @map("created_by")
+  fullName             String    @map("full_name")
+  email                String    @unique
+  role                 String    @default("user")
+  tipoUsuario          String    @default("cliente") @map("tipo_usuario")
+  nome                 String?
+  sobrenome            String?
+  telefone             String?
+  nif                  String?
+  dataNascimento       DateTime? @map("data_nascimento") @db.Date
+  fotoUrl              String?   @map("foto_url")
+  status               String    @default("ativo")
+  restaurantId         String?   @map("restaurant_id") @db.Uuid
+  passwordHash         String?   @map("password_hash")
+  consentimentoDados   Boolean   @default(false) @map("consentimento_dados")
+  enderecosSalvos      Json      @default(dbgenerated("'[]'::jsonb")) @map("enderecos_salvos")
+  metodosPagamento     Json      @default(dbgenerated("'[]'::jsonb")) @map("metodos_pagamento_salvos")
+
+  restaurant           Restaurant? @relation(fields: [restaurantId], references: [id])
+  entregador           Entregador?
+
+  @@map("users")
+  @@index([tipoUsuario], map: "idx_users_tipo_usuario")
+  @@index([restaurantId], map: "idx_users_restaurant_id")
+}
+
+model Restaurant {
+  id                  String      @id @default(uuid()) @db.Uuid
+  createdDate         DateTime    @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate         DateTime    @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy           String?     @map("created_by")
+  nome                String
+  descricao           String?
+  categoria           String?
+  endereco            String
+  telefone            String
+  email               String?
+  tempoPreparo        Int?        @map("tempo_preparo")
+  taxaEntrega         Decimal?    @map("taxa_entrega") @db.Decimal(10, 2)
+  valorMinimo         Decimal?    @map("valor_minimo") @db.Decimal(10, 2)
+  status              String      @default("ativo")
+  avaliacao           Decimal?    @db.Decimal(3, 2)
+  imagemUrl           String?     @map("imagem_url")
+  horarioFuncionamento Json?      @default(dbgenerated("'{}'::jsonb")) @map("horario_funcionamento")
+
+  menuItems           MenuItem[]
+  carts               Cart[]
+  orders              Order[]
+  users               User[]
+
+  @@map("restaurants")
+  @@index([categoria], map: "idx_restaurants_categoria")
+  @@index([status], map: "idx_restaurants_status")
+  @@index([nome], map: "idx_restaurants_nome")
+}
+
+model MenuItem {
+  id                    String    @id @default(uuid()) @db.Uuid
+  createdDate           DateTime  @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate           DateTime  @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy             String?   @map("created_by")
+  restaurantId          String    @map("restaurant_id") @db.Uuid
+  nome                  String
+  descricao             String?
+  preco                 Decimal   @db.Decimal(10, 2)
+  categoria             String?
+  imagemUrl             String?   @map("imagem_url")
+  disponivel            Boolean   @default(true)
+  tempoPreparo          Int?      @map("tempo_preparo")
+  ingredientes          Json      @default(dbgenerated("'[]'::jsonb"))
+  adicionais            Json      @default(dbgenerated("'[]'::jsonb"))
+  opcoesPersonalizacao  Json      @default(dbgenerated("'[]'::jsonb")) @map("opcoes_personalizacao")
+  alergenos             Json      @default(dbgenerated("'[]'::jsonb"))
+
+  restaurant            Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("menu_items")
+  @@index([restaurantId], map: "idx_menu_items_restaurant_id")
+  @@index([categoria], map: "idx_menu_items_categoria")
+  @@index([disponivel], map: "idx_menu_items_disponivel")
+  @@index([nome], map: "idx_menu_items_nome")
+}
+
+model Customer {
+  id                 String    @id @default(uuid()) @db.Uuid
+  createdDate        DateTime  @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate        DateTime  @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy          String?   @map("created_by")
+  nome               String
+  email              String?
+  telefone           String
+  enderecoPrincipal  String?   @map("endereco_principal")
+  enderecosSalvos    Json      @default(dbgenerated("'[]'::jsonb")) @map("enderecos_salvos")
+  preferencias       Json      @default(dbgenerated("'{}'::jsonb"))
+  totalPedidos       Int       @default(0) @map("total_pedidos")
+  valorGastoTotal    Decimal   @default(0) @map("valor_gasto_total") @db.Decimal(10, 2)
+  dataUltimoPedido   DateTime? @map("data_ultimo_pedido") @db.Timestamptz(6)
+
+  orders             Order[]
+
+  @@map("customers")
+  @@index([telefone], map: "idx_customers_telefone")
+  @@index([email], map: "idx_customers_email")
+  @@index([nome], map: "idx_customers_nome")
+}
+
+model Entregador {
+  id             String     @id @default(uuid()) @db.Uuid
+  createdDate    DateTime   @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate    DateTime   @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy      String?    @map("created_by")
+  userId         String?    @map("user_id") @db.Uuid @unique
+  email          String
+  nomeCompleto   String     @map("nome_completo")
+  telefone       String
+  endereco       String?
+  nif            String?
+  dataNascimento DateTime?  @map("data_nascimento") @db.Date
+  fotoUrl        String?    @map("foto_url")
+  status         String     @default("ativo")
+  aprovado       Boolean    @default(false)
+  veiculoTipo    String?    @map("veiculo_tipo")
+  veiculoPlaca   String?    @map("veiculo_placa")
+  disponivel     Boolean    @default(false)
+  avaliacao      Decimal    @default(0) @db.Decimal(3, 2)
+  totalEntregas  Int        @default(0) @map("total_entregas")
+  latitude       Decimal?   @db.Decimal(10, 8)
+  longitude      Decimal?   @db.Decimal(11, 8)
+  iban           String?
+  nomeBanco      String?    @map("nome_banco")
+  ultimoLogin    DateTime?  @map("ultimo_login") @db.Timestamptz(6)
+
+  user           User?      @relation(fields: [userId], references: [id])
+  deliveries     Delivery[]
+  orders         Order[]    @relation("OrderEntregador")
+  alteracoes     AlteracaoPerfil[]
+
+  @@map("entregadores")
+  @@index([email], map: "idx_entregadores_email")
+  @@index([aprovado], map: "idx_entregadores_aprovado")
+  @@index([disponivel], map: "idx_entregadores_disponivel")
+  @@index([latitude, longitude], map: "idx_entregadores_location")
+}
+
+model Cart {
+  id               String    @id @default(uuid()) @db.Uuid
+  createdDate      DateTime  @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate      DateTime  @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy        String?   @map("created_by")
+  sessionId        String    @map("session_id")
+  restaurantId     String    @map("restaurant_id") @db.Uuid
+  itens            Json      @default(dbgenerated("'[]'::jsonb"))
+  subtotal         Decimal   @default(0) @db.Decimal(10, 2)
+  dataCriacao      DateTime  @default(now()) @map("data_criacao") @db.Timestamptz(6)
+  dataAtualizacao  DateTime  @default(now()) @map("data_atualizacao") @db.Timestamptz(6)
+
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id])
+
+  @@map("carts")
+  @@index([sessionId], map: "idx_carts_session_id")
+  @@index([restaurantId], map: "idx_carts_restaurant_id")
+  @@index([dataAtualizacao], map: "idx_carts_data_atualizacao")
+}
+
+model Order {
+  id                 String      @id @default(uuid()) @db.Uuid
+  createdDate        DateTime    @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate        DateTime    @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy          String?     @map("created_by")
+  customerId         String?     @map("customer_id") @db.Uuid
+  restaurantId       String      @map("restaurant_id") @db.Uuid
+  entregadorId       String?     @map("entregador_id") @db.Uuid
+  numeroPedido       String?     @map("numero_pedido") @unique
+  clienteNome        String      @map("cliente_nome")
+  clienteTelefone    String      @map("cliente_telefone")
+  clienteEmail       String?     @map("cliente_email")
+  enderecoEntrega    Json        @map("endereco_entrega")
+  itens              Json        @map("itens")
+  subtotal           Decimal     @db.Decimal(10, 2)
+  taxaEntrega        Decimal?    @default(0) @map("taxa_entrega") @db.Decimal(10, 2)
+  taxaServico        Decimal?    @default(0) @map("taxa_servico") @db.Decimal(10, 2)
+  desconto           Decimal?    @default(0) @db.Decimal(10, 2)
+  cupomUsado         String?     @map("cupom_usado")
+  total              Decimal     @db.Decimal(10, 2)
+  status             String      @default("pendente_pagamento")
+  formaPagamento     String?     @map("forma_pagamento")
+  pagamentoStatus    String      @default("pendente") @map("pagamento_status")
+  pagamentoId        String?     @map("pagamento_id")
+  tempoEstimadoPreparo Int?      @map("tempo_estimado_preparo")
+  tempoEstimadoEntrega Int?      @map("tempo_estimado_entrega")
+  observacoesCliente String?     @map("observacoes_cliente")
+  observacoesRestaurante String? @map("observacoes_restaurante")
+  historicoStatus    Json        @default(dbgenerated("'[]'::jsonb")) @map("historico_status")
+  dataConfirmacao    DateTime?   @map("data_confirmacao") @db.Timestamptz(6)
+  dataEntrega        DateTime?   @map("data_entrega") @db.Timestamptz(6)
+  avaliacao          Json?       @map("avaliacao")
+
+  customer           Customer?   @relation(fields: [customerId], references: [id])
+  restaurant         Restaurant  @relation(fields: [restaurantId], references: [id])
+  entregador         Entregador? @relation("OrderEntregador", fields: [entregadorId], references: [id])
+  delivery           Delivery?
+
+  @@map("orders")
+  @@index([restaurantId], map: "idx_orders_restaurant_id")
+  @@index([customerId], map: "idx_orders_customer_id")
+  @@index([entregadorId], map: "idx_orders_entregador_id")
+  @@index([status], map: "idx_orders_status")
+  @@index([numeroPedido], map: "idx_orders_numero_pedido")
+  @@index([createdDate], map: "idx_orders_created_date")
+  @@index([clienteTelefone], map: "idx_orders_cliente_telefone")
+}
+
+model Delivery {
+  id                 String     @id @default(uuid()) @db.Uuid
+  createdDate        DateTime   @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate        DateTime   @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy          String?    @map("created_by")
+  orderId            String     @map("order_id") @db.Uuid @unique
+  entregadorId       String?    @map("entregador_id") @db.Uuid
+  status             String     @default("aguardando_aceite")
+  enderecoColeta     String     @map("endereco_coleta")
+  enderecoEntrega    String     @map("endereco_entrega")
+  clienteNome        String     @map("cliente_nome")
+  restauranteNome    String     @map("restaurante_nome")
+  valorFrete         Decimal    @map("valor_frete") @db.Decimal(10, 2)
+  distanciaKm        Decimal?   @map("distancia_km") @db.Decimal(10, 2)
+  tempoEstimadoMin   Int?       @map("tempo_estimado_min")
+  dataAceite         DateTime?  @map("data_aceite") @db.Timestamptz(6)
+  dataColeta         DateTime?  @map("data_coleta") @db.Timestamptz(6)
+  dataFinalizacao    DateTime?  @map("data_finalizacao") @db.Timestamptz(6)
+  avaliacaoCliente   Int?       @map("avaliacao_cliente")
+  comentarioCliente  String?    @map("comentario_cliente")
+
+  order              Order      @relation(fields: [orderId], references: [id])
+  entregador         Entregador? @relation(fields: [entregadorId], references: [id])
+
+  @@map("deliveries")
+  @@index([orderId], map: "idx_deliveries_order_id")
+  @@index([entregadorId], map: "idx_deliveries_entregador_id")
+  @@index([status], map: "idx_deliveries_status")
+  @@index([createdDate], map: "idx_deliveries_created_date")
+}
+
+model AlteracaoPerfil {
+  id              String     @id @default(uuid()) @db.Uuid
+  createdDate     DateTime   @default(now()) @map("created_date") @db.Timestamptz(6)
+  updatedDate     DateTime   @default(now()) @map("updated_date") @db.Timestamptz(6)
+  createdBy       String?    @map("created_by")
+  entregadorId    String     @map("entregador_id") @db.Uuid
+  dadosAntigos    Json       @map("dados_antigos")
+  dadosNovos      Json       @map("dados_novos")
+  status          String     @default("pendente")
+  observacoesAdmin String?   @map("observacoes_admin")
+
+  entregador      Entregador @relation(fields: [entregadorId], references: [id])
+
+  @@map("alteracoes_perfil")
+  @@index([entregadorId], map: "idx_alteracoes_perfil_entregador_id")
+  @@index([status], map: "idx_alteracoes_perfil_status")
+}
+
+// Views are not modelled directly; leverage Prisma.$queryRaw if needed.

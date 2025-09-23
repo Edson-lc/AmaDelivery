@@ -1,0 +1,8 @@
+1 - Ajuste server/.env com sua DATABASE_URL real e rode npm run prisma:push
+ (ou prisma migrate) para materializar o schema no Postgres.
+ 
+2 - Ligue o front ao novo backend substituindo chamadas de @base44/sdk 
+por fetch/axios contra as rotas criadas (ex.: GET /api/restaurants).
+
+3 - Estenda o backend com autenticação, rotas de usuários/entregadores/deliveries 
+e regras de negócio extras conforme forem migradas do Base44.
