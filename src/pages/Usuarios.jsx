@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { User } from "@/api/entities";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,12 +84,11 @@ export default function UsuariosPage() {
 
   const handleSubmit = async (userData) => {
     try {
+      const safeData = userData || {};
       if (editingUser) {
-        await User.update(editingUser.id, userData);
+        await User.update(editingUser.id, safeData);
       } else {
-        // Para criar um novo usuário, seria necessário uma função específica
-        console.log("Criar usuário:", userData);
-        alert("Funcionalidade de criar usuário será implementada em breve");
+        await User.create(safeData);
       }
       setShowForm(false);
       setEditingUser(null);
@@ -100,7 +99,10 @@ export default function UsuariosPage() {
   };
 
   const handleEdit = (user) => {
-    setEditingUser(user);
+    // Enriquecer com campo 'endereco' derivado, se existir em enderecos_salvos
+    const base = Array.isArray(user.enderecos_salvos) ? user.enderecos_salvos[0] : undefined;
+    const endereco = normalizeAddressValue(base);
+    setEditingUser({ ...user, endereco });
     setShowForm(true);
   };
 
@@ -280,3 +282,4 @@ export default function UsuariosPage() {
     </div>
   );
 }
+import { normalizeAddressValue } from "@/utils/entregadorAddress";

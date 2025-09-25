@@ -19,8 +19,11 @@ import { ptBR } from "date-fns/locale";
 import EntregadorCard from "../components/entregadores/EntregadorCard";
 import EntregadorForm from "../components/entregadores/EntregadorForm";
 import EntregadorDetails from "../components/entregadores/EntregadorDetails"; // New import for EntregadorDetails
+import { useNavigate } from "react-router-dom";
+import { normalizeEntregadorPayload } from "@/utils/entregadorAddress";
 
 export default function EntregadoresPage() {
+  const navigate = useNavigate();
   const [entregadores, setEntregadores] = useState([]);
   const [filteredEntregadores, setFilteredEntregadores] = useState([]);
   const [solicitacoesAlteracao, setSolicitacoesAlteracao] = useState([]);
@@ -54,7 +57,7 @@ export default function EntregadoresPage() {
         }
     }
 
-    // Ordenar: pendentes primeiro, depois por data de criação
+    // Ordenar: pendentes primeiro, depois por data de criaï¿½ï¿½o
     filtered.sort((a, b) => {
         if (!a.aprovado && b.aprovado) return -1;
         if (a.aprovado && !b.aprovado) return 1;
@@ -90,10 +93,11 @@ export default function EntregadoresPage() {
 
   const handleSubmit = async (formData) => {
     try {
+      const payload = normalizeEntregadorPayload(formData);
       if (editingEntregador) {
-        await Entregador.update(editingEntregador.id, formData);
+        await Entregador.update(editingEntregador.id, payload);
       } else {
-        await Entregador.create({ ...formData, aprovado: true }); // Admin-created are pre-approved
+        await Entregador.create({ ...payload, aprovado: true });
       }
       setShowForm(false);
       setEditingEntregador(null);
@@ -110,7 +114,7 @@ export default function EntregadoresPage() {
 
   const handleViewDetails = (entregador) => {
     setSelectedEntregador(entregador);
-    setSelectedSolicitacao(null); // Limpa solicitação para não misturar contextos
+    setSelectedSolicitacao(null); // Limpa solicitaï¿½ï¿½o para nï¿½o misturar contextos
   };
   
   const handleApprove = async (driverId) => {
@@ -125,7 +129,7 @@ export default function EntregadoresPage() {
   const handleReject = async (driverId) => {
     try {
       // Idealmente, isso deveria apagar ou marcar como 'rejeitado'
-      // Por agora, vamos apenas marcar como suspenso para não perder o registo
+      // Por agora, vamos apenas marcar como suspenso para nï¿½o perder o registo
       await Entregador.update(driverId, { aprovado: false, status: 'suspenso' });
       await loadData();
     } catch (error) {
@@ -135,11 +139,12 @@ export default function EntregadoresPage() {
   
   const handleApproveChange = async (change) => {
     try {
-      await Entregador.update(change.entregador_id, change.dados_novos);
+      const payload = normalizeEntregadorPayload(change?.dados_novos ?? {});
+      await Entregador.update(change.entregador_id, payload);
       await AlteracaoPerfil.update(change.id, { status: 'aprovado' });
       await loadData();
     } catch (error) {
-      console.error("Erro ao aprovar alteração:", error);
+      console.error("Erro ao aprovar alteraï¿½ï¿½o:", error);
     }
   };
 
@@ -148,7 +153,7 @@ export default function EntregadoresPage() {
       await AlteracaoPerfil.update(changeId, { status: 'rejeitado' });
       await loadData();
     } catch (error) {
-      console.error("Erro ao rejeitar alteração:", error);
+      console.error("Erro ao rejeitar alteraï¿½ï¿½o:", error);
     }
   };
 
@@ -163,10 +168,8 @@ export default function EntregadoresPage() {
             <h1 className="text-3xl font-bold text-gray-900">Gestão de Entregadores</h1>
             <p className="text-gray-600 mt-2">Gerencie todos os entregadores e suas solicitações</p>
           </div>
-          <Button 
-            onClick={() => { setShowForm(true); setEditingEntregador(null); setSelectedEntregador(null); setSelectedSolicitacao(null); }}
-            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-          >
+          <Button onClick={() => { setShowForm(true); setEditingEntregador(null); setSelectedEntregador(null); setSelectedSolicitacao(null); }}
+            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600">
             <UserPlus className="w-4 h-4 mr-2" />
             Adicionar Entregador
           </Button>
@@ -176,7 +179,7 @@ export default function EntregadoresPage() {
           <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Total</p><p className="text-2xl font-bold text-gray-900">{entregadores.length}</p></div><Users className="w-8 h-8 text-blue-500" /></div></CardContent></Card>
           <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Pendentes</p><p className="text-2xl font-bold text-yellow-600">{pendingApprovalCount}</p></div><Clock className="w-8 h-8 text-yellow-500" /></div></CardContent></Card>
           <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Ativos</p><p className="text-2xl font-bold text-green-600">{activeDriversCount}</p></div><CheckCircle className="w-8 h-8 text-green-500" /></div></CardContent></Card>
-          <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Alterações</p><p className="text-2xl font-bold text-purple-600">{solicitacoesAlteracao.length}</p></div><AlertCircle className="w-8 h-8 text-purple-500" /></div></CardContent></Card>
+          <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm"><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-sm text-gray-600">Alteraï¿½ï¿½es</p><p className="text-2xl font-bold text-purple-600">{solicitacoesAlteracao.length}</p></div><AlertCircle className="w-8 h-8 text-purple-500" /></div></CardContent></Card>
         </div>
         
         {solicitacoesAlteracao.length > 0 && (
@@ -184,7 +187,7 @@ export default function EntregadoresPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <AlertCircle className="w-5 h-5 text-purple-500" />
-                        Solicitações de Alteração de Perfil Pendentes
+                        Solicitaï¿½ï¿½es de Alteraï¿½ï¿½o de Perfil Pendentes
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -194,7 +197,7 @@ export default function EntregadoresPage() {
                             <div key={solicitacao.id} className="p-3 bg-purple-50 rounded-lg flex justify-between items-center">
                                 <div>
                                     <p className="font-medium">{entregador?.nome_completo || 'Entregador'}</p>
-                                    <p className="text-sm text-gray-600">Solicitou alterações em {format(new Date(solicitacao.created_date), 'dd/MM/yy', { locale: ptBR })}</p>
+                                    <p className="text-sm text-gray-600">Solicitou alteraï¿½ï¿½es em {format(new Date(solicitacao.created_date), 'dd/MM/yy', { locale: ptBR })}</p>
                                 </div>
                                 <div className="flex gap-2">
                                     <Button 
@@ -244,6 +247,7 @@ export default function EntregadoresPage() {
             onCancel={() => { setShowForm(false); setEditingEntregador(null); }}
           />
         ) : selectedEntregador ? (
+          <>
           <EntregadorDetails
             entregador={selectedEntregador}
             solicitacaoAlteracao={selectedSolicitacao}
@@ -251,6 +255,7 @@ export default function EntregadoresPage() {
               setSelectedEntregador(null);
               setSelectedSolicitacao(null);
             }}
+            onEdit={() => handleEdit(selectedEntregador)}
             onApprove={async (item) => {
               if (selectedSolicitacao) {
                 await handleApproveChange(selectedSolicitacao);
@@ -270,6 +275,7 @@ export default function EntregadoresPage() {
               setSelectedSolicitacao(null);
             }}
           />
+          </>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {isLoading ? (

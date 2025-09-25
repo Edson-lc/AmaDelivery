@@ -1,38 +1,56 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Save, X, UserPlus } from "lucide-react";
+import { createEmptyAddress, normalizeAddressValue, normalizeDateForInput, normalizeEntregadorPayload } from "@/utils/entregadorAddress";
 
 export default function EntregadorForm({ entregador, onSubmit, onCancel }) {
-  const [formData, setFormData] = useState(entregador || {
-    nome_completo: "",
-    email: "",
-    telefone: "",
-    status: "ativo",
-    nif: "",
-    data_nascimento: "",
-    veiculo_tipo: "moto",
-    veiculo_placa: "",
-    iban: "",
-    nome_banco: "",
-    foto_url: "",
-    endereco: {
-      rua: "",
-      numero: "",
-      complemento: "",
-      bairro: "",
-      cidade: "",
-      cep: ""
+  const buildInitialState = (data) => {
+    if (!data) {
+      return {
+        nome_completo: "",
+        email: "",
+        telefone: "",
+        status: "ativo",
+        nif: "",
+        data_nascimento: "",
+        veiculo_tipo: "moto",
+        veiculo_placa: "",
+        iban: "",
+        nome_banco: "",
+        foto_url: "",
+        endereco: createEmptyAddress(),
+      };
     }
-  });
+
+    const dateValue = data.data_nascimento ?? data.dataNascimento;
+
+    const normalized = {
+      ...data,
+      data_nascimento: normalizeDateForInput(dateValue),
+      endereco: normalizeAddressValue(data.endereco),
+    };
+
+    delete normalized.dataNascimento;
+
+    return normalized;
+  };
+
+  const [formData, setFormData] = useState(() => buildInitialState(entregador));
+
+  useEffect(() => {
+    setFormData(buildInitialState(entregador));
+  }, [entregador]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    const payload = normalizeEntregadorPayload(formData);
+    onSubmit(payload);
   };
+
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -283,6 +301,7 @@ export default function EntregadorForm({ entregador, onSubmit, onCancel }) {
                   <SelectContent>
                     <SelectItem value="ativo">✅ Ativo</SelectItem>
                     <SelectItem value="inativo">⏸️ Inativo</SelectItem>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
                     <SelectItem value="suspenso">🚫 Suspenso</SelectItem>
                   </SelectContent>
                 </Select>
@@ -306,3 +325,4 @@ export default function EntregadorForm({ entregador, onSubmit, onCancel }) {
     </Card>
   );
 }
+

@@ -128,7 +128,7 @@ model Entregador {
   email          String
   nomeCompleto   String     @map("nome_completo")
   telefone       String
-  endereco       String?
+  endereco       Json?
   nif            String?
   dataNascimento DateTime?  @map("data_nascimento") @db.Date
   fotoUrl        String?    @map("foto_url")

@@ -7,7 +7,7 @@ import {
   Mail, 
   Phone, 
   Calendar,
-  Edit,
+  Eye,
   MoreHorizontal,
   CheckCircle,
   XCircle,
@@ -36,7 +36,7 @@ const vehicleIcons = {
   pe: "🚶"
 };
 
-export default function EntregadorCard({ entregador, onEdit, onApprove, onReject }) {
+export default function EntregadorCard({ entregador, onEdit, onViewDetails, onApprove, onReject }) {
   const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(entregador.nome_completo || 'E')}&background=f97316&color=fff`;
 
   return (
@@ -65,9 +65,9 @@ export default function EntregadorCard({ entregador, onEdit, onApprove, onReject
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => onEdit(entregador)}>
-                <Edit className="w-4 h-4 mr-2" />
-                Editar
+              <DropdownMenuItem onClick={() => (onViewDetails ? onViewDetails(entregador) : onEdit?.(entregador))}>
+                <Eye className="w-4 h-4 mr-2" />
+                Ver detalhes
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -121,3 +121,6 @@ export default function EntregadorCard({ entregador, onEdit, onApprove, onReject
     </Card>
   );
 }
+
+
+

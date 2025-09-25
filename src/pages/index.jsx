@@ -27,6 +27,7 @@ import PortalEntregador from "./PortalEntregador";
 import CadastroEntregador from "./CadastroEntregador";
 
 import Entregadores from "./Entregadores";
+import EntregadorDetalhes from "./EntregadorDetalhes";
 
 import PainelEntregador from "./PainelEntregador";
 
@@ -39,6 +40,8 @@ import EntregasRecentes from "./EntregasRecentes";
 import RestaurantDashboard from "./RestaurantDashboard";
 
 import DatabaseScripts from "./DatabaseScripts";
+import Login from "./Login";
+import CriarConta from "./CriarConta";
 
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import { appBasePath } from '@/utils';
@@ -139,6 +142,7 @@ function PagesContent() {
                 <Route path="/CadastroEntregador" element={<CadastroEntregador />} />
                 
                 <Route path="/Entregadores" element={<Entregadores />} />
+                <Route path="/Entregadores/:id" element={<EntregadorDetalhes />} />
                 
                 <Route path="/PainelEntregador" element={<PainelEntregador />} />
                 
@@ -151,6 +155,8 @@ function PagesContent() {
                 <Route path="/RestaurantDashboard" element={<RestaurantDashboard />} />
                 
                 <Route path="/DatabaseScripts" element={<DatabaseScripts />} />
+                <Route path="/Login" element={<Login />} />
+                <Route path="/CriarConta" element={<CriarConta />} />
                 
             </Routes>
         </Layout>

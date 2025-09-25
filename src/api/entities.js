@@ -134,6 +134,14 @@ export const User = {
     const data = await apiRequest('/users', { query: buildQuery({}, { sort, limit, skip }) });
     return normalizeResponse(data);
   },
+  async create(payload) {
+    const body = mapBody(payload);
+    const data = await apiRequest('/users', {
+      method: 'POST',
+      body,
+    });
+    return normalizeResponse(data);
+  },
   async update(id, payload) {
     const body = mapBody(payload);
     const data = await apiRequest(`/users/${id}`, {
@@ -155,21 +163,16 @@ export const User = {
     return User.update(user.id, payload);
   },
   async login(credentials) {
-    let creds = credentials;
+    const creds = credentials;
 
     if (!creds) {
-      if (typeof window === 'undefined') {
-        throw new Error('Login requer ambiente de navegador.');
-      }
-      const email = window.prompt('E-mail');
-      if (!email) {
+      if (typeof window !== 'undefined') {
+        const current = window.location.pathname + window.location.search + window.location.hash;
+        const q = `?redirect=${encodeURIComponent(current)}`;
+        window.location.href = `/Login${q}`;
         return null;
       }
-      const password = window.prompt('Senha');
-      if (!password) {
-        return null;
-      }
-      creds = { email, password };
+      throw new Error('Credenciais ausentes. Utilize a página /Login.');
     }
 
     const normalizedCreds = {
@@ -178,33 +181,24 @@ export const User = {
     };
 
     if (!normalizedCreds.email || !normalizedCreds.password) {
-      if (typeof window !== 'undefined') {
-        window.alert('E-mail e senha s\\u00E3o obrigat\\u00F3rios.');
-      }
       return null;
     }
 
-    try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: normalizedCreds,
-      });
-      const user = normalizeResponse(data);
-      writeStoredUser(user);
-      return user;
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.alert(error?.message || 'N\\u00E3o foi poss\\u00EDvel autenticar. Verifique as credenciais.');
-      }
-      throw error;
-    }
+    const data = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: normalizedCreds,
+    });
+    const user = normalizeResponse(data);
+    writeStoredUser(user);
+    return user;
   },
   async loginWithRedirect(redirectUrl) {
-    const user = await User.login();
-    if (user && redirectUrl && typeof window !== 'undefined') {
-      window.location.href = redirectUrl;
+    if (typeof window !== 'undefined') {
+      const q = redirectUrl ? `?redirect=${encodeURIComponent(redirectUrl)}` : '';
+      window.location.href = `/Login${q}`;
+      return null;
     }
-    return user;
+    throw new Error('loginWithRedirect requer ambiente de navegador.');
   },
   async logout() {
     try {

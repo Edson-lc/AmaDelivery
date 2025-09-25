@@ -11,7 +11,7 @@ router.post('/login', async (req, res, next) => {
     const { email, password } = req.body ?? {};
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'E-mail e senha são obrigatórios.' });
+      return res.status(400).json({ message: 'E-mail e senha sï¿½o obrigatï¿½rios.' });
     }
 
     const user = await prisma.user.findUnique({
@@ -19,13 +19,13 @@ router.post('/login', async (req, res, next) => {
     });
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ message: 'Credenciais inválidas.' });
+      return res.status(401).json({ message: 'Credenciais invï¿½lidas.' });
     }
 
     const isValid = await bcrypt.compare(String(password), user.passwordHash);
 
     if (!isValid) {
-      return res.status(401).json({ message: 'Credenciais inválidas.' });
+      return res.status(401).json({ message: 'Credenciais invï¿½lidas.' });
     }
 
     const publicUser = await prisma.user.findUnique({

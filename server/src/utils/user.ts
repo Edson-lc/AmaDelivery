@@ -7,6 +7,8 @@ export const publicUserSelect = {
   nome: true,
   sobrenome: true,
   telefone: true,
+  nif: true,
+  dataNascimento: true,
   fotoUrl: true,
   status: true,
   restaurantId: true,
