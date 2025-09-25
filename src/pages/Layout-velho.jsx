@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -17,7 +15,8 @@ import {
   Search,
   Clock,
   LogIn,
-  User as UserIcon
+  User as UserIcon,
+  Heart
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,7 +40,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
 
 const adminNavigationItems = [
   {
@@ -118,41 +116,38 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   const isPublicPage = publicPages.includes(currentPageName);
   const isNoLayoutPage = noLayoutPages.includes(currentPageName);
   const isRestaurantPage = restaurantPages.includes(currentPageName);
 
-  // SOLUÇÃO LIMPA: Apenas carregar dados do usuário, COM redirecionamentos automáticos
   useEffect(() => {
     const checkUser = async () => {
-      setIsLoading(true); // Set loading to true at the start of the check
+      setIsLoading(true);
       try {
         const user = await User.me();
         setCurrentUser(user);
-        
-        // Auto-redirect restaurant users to their dashboard if they're on home page
+
         if (user && user.tipo_usuario === 'restaurante' && user.restaurant_id && currentPageName === 'Home') {
           window.location.href = createPageUrl('RestaurantDashboard');
           return;
         }
-        
-        // NEW: Auto-redirect delivery drivers to their panel if they're on home page
+
         if (user && user.tipo_usuario === 'entregador' && currentPageName === 'Home') {
           window.location.href = createPageUrl('PainelEntregador');
           return;
         }
-        
+
       } catch (error) {
-        // Usuário não está logado, o que é normal para páginas públicas
-        setCurrentUser(null); // Explicitly clear user data if not logged in or error occurs
+        setCurrentUser(null);
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     checkUser();
-  }, [currentPageName]); // Re-run when page changes
+  }, [currentPageName]);
 
   const handleLogout = async () => {
     try {
@@ -164,7 +159,7 @@ export default function Layout({ children, currentPageName }) {
     }
   };
 
-    const resolveLandingPage = (user) => {
+  const resolveLandingPage = (user) => {
     if (!user) return 'Home';
     if (user.role === 'admin') return 'Dashboard';
     if (user.tipo_usuario === 'restaurante' && user.restaurant_id) return 'RestaurantDashboard';
@@ -191,7 +186,7 @@ export default function Layout({ children, currentPageName }) {
   if (isNoLayoutPage) {
     return children;
   }
-  
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -231,13 +226,13 @@ export default function Layout({ children, currentPageName }) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                       <DropdownMenuItem asChild>
-                         <a href={currentUser.tipo_usuario === 'entregador' ? createPageUrl("PainelEntregador") : currentUser.tipo_usuario === 'restaurante' ? createPageUrl("RestaurantDashboard") : createPageUrl("MinhaConta")} className="flex items-center">
+                      <DropdownMenuItem asChild>
+                        <a href={currentUser.tipo_usuario === 'entregador' ? createPageUrl("PainelEntregador") : currentUser.tipo_usuario === 'restaurante' ? createPageUrl("RestaurantDashboard") : createPageUrl("MinhaConta")} className="flex items-center">
                           <UserIcon className="w-4 h-4 mr-2" />
                           {currentUser.tipo_usuario === 'restaurante' ? 'Painel Restaurante' : 'Meu Painel'}
-                         </a>
+                        </a>
                       </DropdownMenuItem>
-                       <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 focus:text-red-600 focus:bg-red-50">
+                      <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 focus:text-red-600 focus:bg-red-50">
                         <LogOut className="w-4 h-4 mr-2" />
                         Sair
                       </DropdownMenuItem>
@@ -257,7 +252,7 @@ export default function Layout({ children, currentPageName }) {
         <main className="flex-1">
           {children}
         </main>
-        
+
         <footer className="bg-gray-800 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -308,13 +303,13 @@ export default function Layout({ children, currentPageName }) {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-gradient-to-br from-orange-50 to-red-50">
-          <Sidebar className="border-r border-orange-200 bg-white/80 backdrop-blur-sm">
+          <Sidebar className={"border-r border-orange-200 bg-white/80 backdrop-blur-sm transition-all duration-300 " + (isCollapsed ? "w-16" : "w-64")}>
             <SidebarHeader className="border-b border-orange-100 p-4 sm:p-6">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center shadow-md">
+              <div className="flex items-center gap-2 sm:gap-3 w-full">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center shadow-md cursor-pointer hover:opacity-90" title={isCollapsed ? "Expandir menu" : "Recolher menu"} onClick={() => setIsCollapsed((p) => !p)}>
                   <span className="text-white text-lg font-bold">♥</span>
                 </div>
-                <div>
+                <div className={isCollapsed ? "hidden" : "block"}>
                   <h2 className="font-bold text-sm sm:text-base text-gray-900">AmaEats</h2>
                   <p className="text-xs text-orange-600">Portal do Restaurante</p>
                 </div>
@@ -323,7 +318,7 @@ export default function Layout({ children, currentPageName }) {
 
             <SidebarContent className="p-4">
               <SidebarGroup>
-                <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
+                <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2 hidden">
                   Menu Principal
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -336,9 +331,9 @@ export default function Layout({ children, currentPageName }) {
                             location.pathname === item.url.split('?')[0] ? 'bg-orange-100 text-orange-700 shadow-sm' : 'text-gray-600'
                           }`}
                         >
-                          <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
-                            <item.icon className="w-5 h-5" />
-                            <span className="font-medium">{item.title}</span>
+                          <Link to={item.url} aria-label={item.title} className={isCollapsed ? "flex items-center justify-center p-3" : "flex items-center gap-3 px-4 py-3"}>
+                            <item.icon className="w-6 h-6" />
+                            {!isCollapsed && <span className="font-medium">{item.title}</span>}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -364,35 +359,21 @@ export default function Layout({ children, currentPageName }) {
                     </Button>
                   </div>
                 </SidebarGroupContent>
-                
               </SidebarGroup>
             </SidebarContent>
-<SidebarFooter className="p-4 border-t border-orange-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={currentUser?.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.full_name || 'Admin')}&background=f97316&color=fff`}
-                    alt="Admin"
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                  <div className="hidden lg:block">
-                    <p className="text-sm font-medium text-gray-900">{currentUser?.full_name?.split(' ')[0] || 'Admin'}</p>
-                    <p className="text-xs text-gray-500">Administrador</p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
+            <SidebarFooter className="p-4 border-t border-orange-100">
+              <SidebarMenu>
+                <SidebarMenuItem
                   onClick={handleLogout}
-                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                  title="Sair"
+                  className="text-red-600 hover:bg-red-50 focus:bg-red-50"
+                  icon={LogOut}
                 >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </div>
+                  Sair
+                </SidebarMenuItem>
+              </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
-          
+
           <main className="flex-1 flex flex-col">
             <header className="bg-white border-b border-orange-200 px-4 sm:px-6 py-3 sm:py-4 md:hidden">
               <div className="flex items-center justify-between">
@@ -418,6 +399,21 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
+  // LAYOUT ADMIN
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acesso Restrito</h2>
+          <p className="text-gray-600 mb-4">Você não tem permissão para acessar esta área.</p>
+          <Button onClick={() => window.location.href = createPageUrl('Home')}>
+            Voltar para Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // LAYOUT ADMIN - verifica permissão mas não redireciona automaticamente
   if (currentUser?.role !== 'admin') {
     return (
@@ -436,9 +432,9 @@ export default function Layout({ children, currentPageName }) {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-orange-50 to-red-50">
-        <Sidebar className="border-r border-orange-200 bg-white/80 backdrop-blur-sm">
+        <Sidebar className={"border-r border-orange-200 bg-white/80 backdrop-blur-sm transition-all duration-300 " + (isCollapsed ? "w-16" : "w-64")}>
           <SidebarHeader className="border-b border-orange-100 p-4 sm:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full">
               <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-red-500 to-pink-600 rounded-lg flex items-center justify-center shadow-md">
                 <span className="text-white text-lg font-bold">♥</span>
               </div>
@@ -464,12 +460,8 @@ export default function Layout({ children, currentPageName }) {
                           location.pathname === item.url ? 'bg-orange-100 text-orange-700 shadow-sm' : 'text-gray-600'
                         }`}
                       >
-                        <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
-                          <item.icon className="w-5 h-5" />
-                          <span className="font-medium">{item.title}</span>
-                          {item.title === "Pedidos" && (
-                            <Badge className="ml-auto bg-red-500 text-white">3</Badge>
-                          )}
+                        <Link to={item.url} aria-label={item.title} className="flex items-center justify-center p-3">
+                          <item.icon className="w-6 h-6" />
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -478,7 +470,7 @@ export default function Layout({ children, currentPageName }) {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup className="mt-8">
+            <SidebarGroup className="mt-8 hidden">
               <SidebarGroupLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 py-2">
                 Acesso Rápido
               </SidebarGroupLabel>
@@ -489,38 +481,38 @@ export default function Layout({ children, currentPageName }) {
                     size="sm"
                     className="w-full justify-start"
                     onClick={() => window.open(createPageUrl("Home"), '_blank')}
-                  >
+                  ></Button>
                     <ShoppingBag className="w-4 h-4 mr-2" />
                     Ver Loja Pública
-                  </Button>
+                  
                 </div>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-orange-100">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={currentUser?.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.full_name || 'Admin')}&background=f97316&color=fff`}
-                              alt="Admin"
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                            <div className="hidden lg:block">
-                              <p className="text-sm font-medium text-gray-900">{currentUser?.full_name?.split(' ')[0] || 'Admin'}</p>
-                              <p className="text-xs text-gray-500">Administrador</p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleLogout}
-                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                            title="Sair"
-                          >
-                            <LogOut className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </SidebarFooter>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <img
+                    src={currentUser?.foto_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.full_name || 'Admin')}&background=f97316&color=fff`}
+                    alt="Admin"
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                  <div className="hidden lg:block">
+                    <p className="text-sm font-medium text-gray-900">{currentUser?.full_name?.split(' ')[0] || 'Admin'}</p>
+                    <p className="text-xs text-gray-500">Administrador</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleLogout}
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  title="Sair"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            </SidebarFooter>
         </Sidebar>
 
         <main className="flex-1 flex flex-col">
