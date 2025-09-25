@@ -6,21 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
+const routeForUser = (user) => {
+  const tipo = user?.tipo_usuario;
+  const role = user?.role;
+  if (role === "admin") return "/Dashboard";
+  if (tipo === "entregador") return "/PainelEntregador";
+  if (tipo === "restaurante") return "/RestaurantDashboard";
+  return "/Home";
+};
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const routeForUser = (user) => {
-    const tipo = user?.tipo_usuario;
-    const role = user?.role;
-    if (role === "admin") return "/Dashboard";
-    if (tipo === "entregador") return "/PainelEntregador";
-    if (tipo === "restaurante") return "/RestaurantDashboard";
-    return "/Home";
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,9 +47,11 @@ export default function LoginPage() {
           const redirect = params.get('redirect');
           navigate(redirect || routeForUser(user));
         }
-      } catch {}
+      } catch (err) {
+        console.debug('Usuário não autenticado no carregamento da página de login.', err);
+      }
     })();
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center p-4">

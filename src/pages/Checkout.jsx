@@ -108,16 +108,15 @@ export default function CheckoutPage() {
         console.error("Usuário não autenticado, redirecionando para login:", error);
         await User.loginWithRedirect(window.location.href);
       } finally {
-        if (window.location.href.includes('token=')) {
-          // Avoid flicker if we are on the redirect back from login
-          return;
+        const isRedirectingBackFromLogin = window.location.href.includes('token=');
+        if (!isRedirectingBackFromLogin) {
+          setIsLoading(false); // End loading state once all checks and loads are done
         }
-        setIsLoading(false); // End loading state once all checks and loads are done
       }
     };
 
     checkAuthAndLoad();
-  }, []); // A dependência vazia garante que isso rode apenas uma vez.
+  }, [loadCheckoutData]);
 
   // Helper function to calculate total for a single item
   const calculateItemTotal = (item) => {

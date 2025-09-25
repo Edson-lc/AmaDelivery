@@ -135,7 +135,7 @@ export default function MenuManagementPage() {
                   <div className="text-center py-12 text-gray-500">
                     <UtensilsCrossed className="w-12 h-12 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-800">Nenhum item no cardápio</h3>
-                    <p>Clique em "Novo Item" para começar a montar seu cardápio.</p>
+                    <p>Clique em &quot;Novo Item&quot; para começar a montar seu cardápio.</p>
                   </div>
                 )}
               </div>

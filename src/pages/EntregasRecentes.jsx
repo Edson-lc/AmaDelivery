@@ -312,7 +312,7 @@ export default function EntregasRecentesPage() {
                         {/* Comentário do Cliente */}
                         {delivery.comentario_cliente && (
                           <div className="bg-gray-50 p-3 rounded-lg">
-                            <p className="text-sm text-gray-700">"{delivery.comentario_cliente}"</p>
+                            <p className="text-sm text-gray-700">&ldquo;{delivery.comentario_cliente}&rdquo;</p>
                           </div>
                         )}
                       </div>

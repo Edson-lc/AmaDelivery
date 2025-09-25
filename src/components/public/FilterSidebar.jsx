@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   Clock, Star, Percent, Flame, Sandwich, Pizza, IceCream, Utensils,
   Beef, Fish, Carrot, Coffee, Wine, Shell

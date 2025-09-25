@@ -102,7 +102,7 @@ export default function MenuItemForm({ item, onSubmit, onCancel }) {
     onSubmit(finalData);
   };
 
-  if (!formData.nome === undefined) return null;
+  if (formData?.nome === undefined) return null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
