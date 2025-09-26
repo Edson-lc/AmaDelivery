@@ -9,8 +9,13 @@ import deliveriesRouter from './deliveries';
 import alteracoesPerfilRouter from './alteracoes-perfil';
 import usersRouter from './users';
 import authRouter from './auth';
+import authenticate from '../middleware/authenticate';
 
 const router = Router();
+
+router.use('/auth', authRouter);
+
+router.use(authenticate);
 
 router.use('/restaurants', restaurantsRouter);
 router.use('/menu-items', menuItemsRouter);
@@ -21,6 +26,5 @@ router.use('/entregadores', entregadoresRouter);
 router.use('/deliveries', deliveriesRouter);
 router.use('/alteracoes-perfil', alteracoesPerfilRouter);
 router.use('/users', usersRouter);
-router.use('/auth', authRouter);
 
 export default router;

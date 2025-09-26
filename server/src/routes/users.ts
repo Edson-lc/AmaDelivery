@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { publicUserSelect } from '../utils/user';
+import { buildErrorPayload } from '../utils/errors';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 
 const router = Router();
 
@@ -16,7 +18,7 @@ router.post('/', async (req, res, next) => {
     const password = (body as any).password as string | undefined;
 
     if (!email || !fullName) {
-      return res.status(400).json({ message: 'E-mail e nome completo são obrigatórios.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'E-mail e nome completo são obrigatórios.'));
     }
 
     let passwordHash: string | undefined;
@@ -87,7 +89,7 @@ router.post('/', async (req, res, next) => {
   } catch (error: any) {
     // Handle unique email constraint
     if (error?.code === 'P2002') {
-      return res.status(409).json({ message: 'E-mail já cadastrado.' });
+      return res.status(409).json(buildErrorPayload('EMAIL_ALREADY_REGISTERED', 'E-mail já cadastrado.'));
     }
     return next(error);
   }
@@ -96,6 +98,7 @@ router.post('/', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const { email, role, tipoUsuario, id } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const where: Prisma.UserWhereInput = {};
 
@@ -115,11 +118,18 @@ router.get('/', async (req, res, next) => {
       where.id = String(id);
     }
 
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-      select: publicUserSelect,
-    });
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        select: publicUserSelect,
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(users));
   } catch (error) {
@@ -129,21 +139,11 @@ router.get('/', async (req, res, next) => {
 
 router.get('/me', async (req, res, next) => {
   try {
-    const { userId } = req.query;
-    if (!userId) {
-      return res.status(401).json({ message: 'Not authenticated' });
+    if (!res.locals.authUser) {
+      return res.status(401).json(buildErrorPayload('UNAUTHENTICATED', 'Sessão expirada ou inválida.'));
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: String(userId) },
-      select: publicUserSelect,
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    res.json(serialize(user));
+    res.json(serialize(res.locals.authUser));
   } catch (error) {
     next(error);
   }
@@ -158,7 +158,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json(buildErrorPayload('USER_NOT_FOUND', 'Usuário não encontrado.'));
     }
 
     res.json(serialize(user));

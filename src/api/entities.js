@@ -1,4 +1,5 @@
 import { apiRequest, toSnakeCase, toCamelCaseKey, transformKeysShallow } from './httpClient';
+import { readAuth, writeAuth, clearAuth, getStoredUser } from './session';
 
 function normalizeResponse(data) {
   return toSnakeCase(data);
@@ -90,53 +91,26 @@ export const Entregador = createEntityClient('entregadores');
 export const Delivery = createEntityClient('deliveries');
 export const AlteracaoPerfil = createEntityClient('alteracoes-perfil');
 
-const USER_STORAGE_KEY = 'amaeats_user';
-
-function readStoredUser() {
-  if (typeof window === 'undefined') return null;
-  const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-  if (!stored) return null;
-  try {
-    return JSON.parse(stored);
-  } catch (error) {
-    console.warn('Failed to parse stored user', error);
-    window.localStorage.removeItem(USER_STORAGE_KEY);
-    return null;
-  }
-}
-
-function clearStoredUser() {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(USER_STORAGE_KEY);
-}
-
-function writeStoredUser(user) {
-  if (typeof window === 'undefined') return;
-  if (!user) {
-    clearStoredUser();
-    return;
-  }
-  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-}
-
 export const User = {
   async me() {
-    const stored = readStoredUser();
-    if (!stored?.id) {
+    const currentAuth = readAuth();
+    if (!currentAuth?.token) {
       return null;
     }
-
     try {
-      const data = await apiRequest(`/users/${stored.id}`);
+      const data = await apiRequest('/auth/me');
       const user = normalizeResponse(data);
-      writeStoredUser(user);
+      writeAuth({ ...currentAuth, user });
       return user;
     } catch (error) {
-      if (error?.status === 404 || error?.status === 401) {
-        clearStoredUser();
+      if (error?.status === 401) {
+        clearAuth();
         return null;
       }
-      console.warn('Failed to refresh stored user, falling back to local copy', error);
+      const stored = getStoredUser();
+      if (stored) {
+        console.warn('Failed to refresh stored user, falling back to local copy', error);
+      }
       return stored;
     }
   },
@@ -159,9 +133,9 @@ export const User = {
       body,
     });
     const user = normalizeResponse(data);
-    const stored = readStoredUser();
-    if (stored?.id === user.id) {
-      writeStoredUser(user);
+    const auth = readAuth();
+    if (auth?.user?.id === user.id) {
+      writeAuth({ ...auth, user });
     }
     return user;
   },
@@ -203,8 +177,14 @@ export const User = {
         method: 'POST',
         body: normalizedCreds,
       });
-      const user = normalizeResponse(data);
-      writeStoredUser(user);
+      const normalized = normalizeResponse(data);
+      const userPayload = normalized?.user ?? normalized?.data?.user;
+      const user = userPayload ? normalizeResponse(userPayload) : null;
+      const token = normalized?.token ?? data?.token;
+      if (!user || !token) {
+        throw new Error('Resposta de autenticação incompleta.');
+      }
+      writeAuth({ user, token });
       return user;
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) {
@@ -233,7 +213,7 @@ export const User = {
     } catch (error) {
       // Ignorar erros de logout
     }
-    writeStoredUser(null);
+    clearAuth();
     return true;
   },
 };

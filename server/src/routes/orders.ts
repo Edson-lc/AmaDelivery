@@ -2,12 +2,15 @@ import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { status, restaurantId, customerId, entregadorId, dateFrom, dateTo } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const filters: Record<string, unknown> = {};
 
@@ -44,16 +47,23 @@ router.get('/', async (req, res, next) => {
         : {}),
     };
 
-    const orders = await prisma.order.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-      include: {
-        restaurant: true,
-        customer: true,
-        entregador: true,
-        delivery: true,
-      },
-    });
+    const [total, orders] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        include: {
+          restaurant: true,
+          customer: true,
+          entregador: true,
+          delivery: true,
+        },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(orders));
   } catch (error) {
@@ -75,7 +85,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json(buildErrorPayload('ORDER_NOT_FOUND', 'Pedido n√£o encontrado.'));
     }
 
     res.json(serialize(order));
@@ -117,9 +127,14 @@ router.post('/', async (req, res, next) => {
     } = req.body ?? {};
 
     if (!restaurantId || !clienteNome || !clienteTelefone || !enderecoEntrega || !itens || subtotal === undefined || total === undefined) {
-      return res.status(400).json({
-        message: 'Campos obrigatÛrios: restaurantId, clienteNome, clienteTelefone, enderecoEntrega, itens, subtotal, total.',
-      });
+      return res
+        .status(400)
+        .json(
+          buildErrorPayload(
+            'VALIDATION_ERROR',
+            'Campos obrigat√≥rios: restaurantId, clienteNome, clienteTelefone, enderecoEntrega, itens, subtotal, total.',
+          ),
+        );
     }
 
     const generatedNumber = numeroPedido ?? `AMA-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -191,13 +206,13 @@ router.patch('/:id/status', async (req, res, next) => {
     const { status, note } = req.body ?? {};
 
     if (!status) {
-      return res.status(400).json({ message: 'status È obrigatÛrio.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'status √© obrigat√≥rio.'));
     }
 
     const existing = await prisma.order.findUnique({ where: { id } });
 
     if (!existing) {
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json(buildErrorPayload('ORDER_NOT_FOUND', 'Pedido n√£o encontrado.'));
     }
 
     const historyEntries = Array.isArray(existing.historicoStatus)

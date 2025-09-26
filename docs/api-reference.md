@@ -1,19 +1,59 @@
 # AmaDelivery API Reference
 
-Este documento descreve todos os endpoints HTTP expostos pelo backend Express do AmaDelivery. Todos os recursos estão disponíveis sob o prefixo `/api`, conforme definido em [`server/src/app.ts`](../server/src/app.ts), e retornam respostas JSON serializadas pelo helper `serialize`.
+Esta referência cataloga todos os endpoints do backend Express expostos sob o prefixo `/api`. Todas as respostas são JSON serializados pelo helper [`serialize`](../server/src/utils/serialization.ts) e requerem autenticação com token Bearer, exceto onde indicado.
 
-## Convenções gerais
+## Convenções Globais
 
-- **Formato de data**: campos de data são strings ISO 8601 produzidas pelo Prisma.
-- **Paginação**: os endpoints atuais não expõem paginação; todos retornam listas completas.
-- **Erros**: quando a validação falha ou o recurso não é encontrado, a API responde com um objeto `{ "message": string }` e o status HTTP apropriado.
-- **Autenticação**: não há autenticação baseada em token. O endpoint de login retorna os dados públicos do usuário. Caberá ao cliente gerenciar sessão/cookies.
+### Autenticação baseada em token
+- **Header obrigatório**: `Authorization: Bearer <token>` em todas as chamadas autenticadas.
+- **Ciclo de sessão**:
+  1. Envie `POST /api/auth/login` com credenciais válidas para receber um `token` JWT de curta duração e o objeto `user` público.
+  2. Armazene o token com segurança no cliente e anexe o header `Authorization` nas requisições subsequentes.
+  3. Utilize `GET /api/auth/me` para sincronizar o perfil atual sem depender de IDs armazenados no cliente.
+  4. Opcionalmente, chame `POST /api/auth/logout` para encerrar a sessão do lado do cliente.
+
+### Paginação
+- **Query params**: `limit` (máx. 100) e `skip` (deslocamento inicial) estão disponíveis em todos os endpoints de listagem.
+- **Headers de resposta**:
+  - `X-Total-Count`: total de registros que correspondem ao filtro.
+  - `X-Limit`: limite aplicado à consulta.
+  - `X-Skip`: deslocamento aplicado.
+- **Valor padrão**: se `limit` não for informado, todos os registros são retornados; recomenda-se informar explicitamente um limite (máx. 100) para evitar cargas elevadas.
+
+### Erros estruturados
+Todas as falhas retornam o formato:
+```json
+{
+  "error": {
+    "code": "STRING_EM_SNAKE_CASE",
+    "message": "Descrição em português para o consumidor",
+    "details": {
+      "opcional": "dados adicionais"
+    }
+  }
+}
+```
+Exemplos de códigos: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `RESTAURANT_NOT_FOUND`, `UNAUTHENTICATED`.
+
+### Schemas compartilhados
+Os objetos retornados seguem os esquemas abaixo (chaves em `snake_case`). Tipos numéricos utilizam JSON number, datas são strings ISO 8601.
+
+| Objeto | Campos principais |
+| --- | --- |
+| **User** | `id` (string UUID), `email`, `full_name`, `role`, `tipo_usuario`, `nome`, `sobrenome`, `telefone`, `nif`, `data_nascimento`, `foto_url`, `status`, `restaurant_id`, `consentimento_dados`, `enderecos_salvos` (JSON), `metodos_pagamento` (JSON), `created_date`, `updated_date` |
+| **Restaurant** | `id`, `nome`, `descricao`, `categoria`, `endereco`, `telefone`, `email`, `tempo_preparo`, `taxa_entrega`, `valor_minimo`, `status`, `avaliacao`, `imagem_url`, `horario_funcionamento`, `created_date`, `updated_date`, `menu_items` (array de **MenuItem** quando solicitado) |
+| **MenuItem** | `id`, `restaurant_id`, `nome`, `descricao`, `categoria`, `preco`, `disponivel`, `imagem_url`, `tempo_preparo_estimado`, `created_date`, `updated_date` |
+| **Order** | `id`, `restaurant_id`, `customer_id`, `entregador_id`, `numero_pedido`, `cliente_nome`, `cliente_telefone`, `cliente_email`, `endereco_entrega`, `itens` (JSON), `subtotal`, `taxa_entrega`, `taxa_servico`, `desconto`, `cupom_usado`, `total`, `status`, `forma_pagamento`, `pagamento_status`, `pagamento_id`, `tempo_estimado_preparo`, `tempo_estimado_entrega`, `observacoes_cliente`, `observacoes_restaurante`, `historico_status` (array), `data_confirmacao`, `data_entrega`, `avaliacao`, `created_date`, `updated_date`, `restaurant`, `customer`, `entregador`, `delivery` |
+| **Delivery** | `id`, `order_id`, `entregador_id`, `status`, `endereco_coleta`, `endereco_entrega`, `valor_frete`, `distancia_km`, `tempo_estimado`, `observacoes`, `created_date`, `updated_date` |
+| **Cart** | `id`, `session_id`, `restaurant_id`, `customer_id`, `itens` (JSON), `subtotal`, `taxa_entrega`, `taxa_servico`, `total`, `created_date`, `updated_date` |
+| **Customer** | `id`, `nome`, `telefone`, `email`, `documento`, `enderecos` (JSON), `preferencias` (JSON), `created_date`, `updated_date` |
+| **Entregador** | `id`, `user_id`, `email`, `nome_completo`, `telefone`, `endereco` (JSON), `nif`, `data_nascimento`, `foto_url`, `status`, `aprovado`, `veiculo_tipo`, `veiculo_placa`, `disponivel`, `avaliacao`, `total_entregas`, `latitude`, `longitude`, `iban`, `nome_banco`, `ultimo_login`, `created_date`, `updated_date` |
+| **AlteracaoPerfil** | `id`, `entregador_id`, `dados_antigos` (JSON), `dados_novos` (JSON), `status`, `comentarios`, `avaliado_por`, `created_date`, `updated_date` |
 
 ## Monitoramento
 
 ### `GET /health`
-
-Retorna o estado do servidor e informações básicas de uptime.
+Retorna o estado do servidor. **Não requer autenticação**.
 
 **Resposta 200**
 ```json
@@ -21,7 +61,7 @@ Retorna o estado do servidor e informações básicas de uptime.
   "status": "ok",
   "uptime": 123.45,
   "env": {
-    "port": 3333
+    "port": 4000
   }
 }
 ```
@@ -29,341 +69,238 @@ Retorna o estado do servidor e informações básicas de uptime.
 ## Autenticação
 
 ### `POST /api/auth/login`
+Autentica por e-mail e senha.
 
-Realiza a autenticação de um usuário via e-mail e senha.
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `email` | string | ✓ | E-mail cadastrado (case insensitive). |
+| `password` | string | ✓ | Senha em texto puro. |
 
-- **Body JSON obrigatório**
-  - `email` (string) — e-mail cadastrado.
-  - `password` (string) — senha em texto puro.
+**Resposta 200**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { "id": "...", "email": "...", "full_name": "..." }
+}
+```
 
-**Respostas**
-- `200` — retorna o usuário público selecionado por [`publicUserSelect`](../server/src/utils/user.ts).
-- `400` — quando e-mail ou senha não são enviados.
-- `401` — quando as credenciais não conferem.
+**Erros comuns**
+- `400 VALIDATION_ERROR` – e-mail ou senha ausentes.
+- `401 INVALID_CREDENTIALS` – credenciais incorretas.
 
 ### `POST /api/auth/logout`
+Encerrar sessão no cliente. **Resposta**: `204 No Content`.
 
-Endpoint de conveniência que invalida a sessão do lado do cliente. Não recebe body e responde `204 No Content`.
+### `GET /api/auth/me`
+Retorna o usuário autenticado a partir do token.
 
-## Usuários
+**Resposta 200** — objeto **User**.
 
-Todos os handlers estão em [`server/src/routes/users.ts`](../server/src/routes/users.ts).
+**Erro** — `401 INVALID_TOKEN` se o token estiver ausente ou inválido.
+
+## Usuários (`/api/users`)
+Implementação em [`server/src/routes/users.ts`](../server/src/routes/users.ts).
 
 ### `POST /api/users`
+Cria usuário. Aceita os campos descritos no esquema **User**; `password` (string) é opcional e gera `password_hash` com bcrypt; `restaurant_id` pode conectar a um restaurante existente.
 
-Cria um usuário com os dados informados.
-
-- **Body JSON obrigatório**
-  - `email` (string) — obrigatório e único.
-  - `fullName` (string) — nome completo.
-- **Body opcional**
-  - `password` (string) — se informado, é armazenado como `passwordHash` com bcrypt.
-  - `role`, `tipoUsuario`, `nome`, `sobrenome`, `telefone`, `nif`, `dataNascimento`, `fotoUrl`, `status`.
-  - `restaurantId` — conecta o usuário a um restaurante existente.
-  - `consentimentoDados`, `enderecosSalvos`, `metodosPagamento`, demais campos mapeados no arquivo da rota.
-
-**Respostas**
-- `201` — usuário criado; corpo com projeção pública.
-- `400` — campos obrigatórios ausentes.
-- `409` — e-mail já cadastrado.
+**Erros**
+- `400 VALIDATION_ERROR` — `email` ou `full_name` ausentes.
+- `409 EMAIL_ALREADY_REGISTERED` — e-mail duplicado.
 
 ### `GET /api/users`
+Lista usuários com filtros opcionais.
 
-Lista usuários filtrando por query string opcional.
+| Param | Tipo | Descrição |
+| --- | --- | --- |
+| `email` | string | Filtro parcial (case insensitive). |
+| `role` | string | Filtra por função. |
+| `tipoUsuario` | string | Filtra por tipo de usuário. |
+| `id` | string | Busca direta por ID. |
+| `limit`, `skip` | number | Paginação padrão. |
 
-- **Query params**
-  - `email` — busca parcial (case insensitive).
-  - `role`, `tipoUsuario`, `id` — filtros exatos.
-
-**Resposta 200** — array de usuários públicos ordenados por `createdDate desc`.
+**Resposta 200** — array de **User** ordenado por `created_date desc` com headers de paginação.
 
 ### `GET /api/users/me`
-
-Busca um usuário específico a partir do `userId` informado na query.
-
-- **Query param obrigatório**: `userId`.
-
-**Respostas**
-- `200` — usuário público.
-- `401` — sem `userId` na query.
-- `404` — usuário inexistente.
+Retorna o usuário associado ao token atual (mesmo payload de `GET /api/auth/me`).
 
 ### `GET /api/users/:id`
-
-Retorna o usuário pelo identificador do path. Responde `404` se não existir.
+Busca usuário específico. `404 USER_NOT_FOUND` quando inexistente.
 
 ### `PUT /api/users/:id`
+Atualiza usuário. Aceita campos do esquema **User**; `password` é re-hashada se enviada; `endereco` (objeto ou string) é convertido para `enderecos_salvos`.
 
-Atualiza um usuário existente.
-
-- **Body JSON** — aceita os mesmos campos de criação; `password` é opcional e, se presente, é re-hashada. Campo auxiliar `endereco` é convertido para `enderecosSalvos`.
-
-**Resposta 200** — usuário atualizado com projeção pública.
-
-## Restaurantes
-
-Implementados em [`server/src/routes/restaurants.ts`](../server/src/routes/restaurants.ts).
+## Restaurantes (`/api/restaurants`)
 
 ### `GET /api/restaurants`
+Lista restaurantes.
 
-Lista restaurantes com filtros opcionais.
+| Param | Tipo | Descrição |
+| --- | --- | --- |
+| `category` | string | Filtra `categoria` (case insensitive). |
+| `status` | string | Filtra por status operacional. |
+| `search` | string | Busca em `nome` e `descricao`. |
+| `includeMenuItems` | boolean | Quando `true`, inclui `menu_items`. |
+| `limit`, `skip` | number | Paginação. |
 
-- `category` — filtra por `categoria` (lowercase).
-- `status` — filtra por status.
-- `search` — aplica `contains` em `nome` ou `descricao` (case insensitive).
-- `includeMenuItems=true` — inclui itens de menu associados.
-
-**Resposta 200** — array de restaurantes ordenados por `createdDate desc`.
+**Resposta 200** — array de **Restaurant** ordenado por `created_date desc`.
 
 ### `GET /api/restaurants/:id`
-
-Retorna um restaurante com seus itens de menu. Responde `404` se não encontrado.
+Retorna restaurante com `menu_items`. `404 RESTAURANT_NOT_FOUND` se ausente.
 
 ### `POST /api/restaurants`
+Cria restaurante.
 
-Cria um restaurante.
+Campos obrigatórios: `nome`, `endereco`, `telefone`.
 
-- **Body obrigatório**: `nome`, `endereco`, `telefone`.
-- **Body opcional**: `descricao`, `categoria`, `email`, `tempoPreparo`, `taxaEntrega`, `valorMinimo`, `status`, `avaliacao`, `imagemUrl`, `horarioFuncionamento`.
+**Erros**
+- `400 VALIDATION_ERROR` — campos obrigatórios faltando.
 
-**Respostas**
-- `201` — restaurante criado.
-- `400` — campos obrigatórios ausentes.
+### `PUT /api/restaurants/:id` & `DELETE /api/restaurants/:id`
+Atualiza ou remove restaurantes existentes. `DELETE` responde `204` em sucesso.
 
-### `PUT /api/restaurants/:id`
-
-Atualiza dados do restaurante. Body livre com campos aceitos pelo Prisma.
-
-### `DELETE /api/restaurants/:id`
-
-Remove definitivamente o restaurante. Responde `204`.
-
-## Itens de menu
-
-Rota definida em [`server/src/routes/menu-items.ts`](../server/src/routes/menu-items.ts).
+## Itens de Menu (`/api/menu-items`)
 
 ### `GET /api/menu-items`
-
-Query params opcionais:
-- `restaurantId`
-- `category`
-- `available` (`true`/`false`)
-- `search` — texto aplicado a nome e descrição (case insensitive).
-
-**Resposta 200** — lista ordenada por nome.
+Filtros: `restaurantId`, `category`, `available`, `search`, além de `limit` e `skip`.
 
 ### `GET /api/menu-items/:id`
-
-Retorna item individual incluindo restaurante. `404` se ausente.
+Retorna item com restaurante associado. `404 MENU_ITEM_NOT_FOUND` para inexistentes.
 
 ### `POST /api/menu-items`
+Cria item de menu.
 
-Cria um item de menu.
-- Campos obrigatórios: `restaurantId`, `nome`, `preco`.
-- Campos opcionais: `descricao`, `categoria`, `imagemUrl`, `disponivel`, etc.
+Campos obrigatórios: `restaurantId`, `nome`, `preco`.
 
-**Respostas**
-- `201` — item criado.
-- `400` — dados obrigatórios ausentes.
+### `PUT /api/menu-items/:id` & `DELETE /api/menu-items/:id`
+Atualiza ou remove itens.
 
-### `PUT /api/menu-items/:id`
-
-Atualiza um item existente.
-
-### `DELETE /api/menu-items/:id`
-
-Remove o item. Responde `204`.
-
-## Pedidos
-
-Implementados em [`server/src/routes/orders.ts`](../server/src/routes/orders.ts).
+## Pedidos (`/api/orders`)
 
 ### `GET /api/orders`
+Filtra pedidos pelos parâmetros abaixo (todos opcionais):
 
-Filtros opcionais via query:
-- `status`
-- `restaurantId`
-- `customerId`
-- `entregadorId`
-- `dateFrom` / `dateTo` — intervalos aplicados a `createdDate`.
+| Param | Tipo | Descrição |
+| --- | --- | --- |
+| `status` | string | Filtra status atual. |
+| `restaurantId` | string | ID do restaurante. |
+| `customerId` | string | ID do cliente. |
+| `entregadorId` | string | ID do entregador. |
+| `dateFrom`, `dateTo` | string (ISO) | Intervalo de criação. |
+| `limit`, `skip` | number | Paginação. |
 
-Retorna pedidos com `restaurant`, `customer`, `entregador` e `delivery` incluídos.
+**Resposta 200** — array de **Order** com relacionamentos `restaurant`, `customer`, `entregador` e `delivery` incluídos.
 
 ### `GET /api/orders/:id`
-
-Retorna um pedido específico com as mesmas inclusões. `404` se não existir.
+Retorna pedido completo. `404 ORDER_NOT_FOUND` caso inexistente.
 
 ### `POST /api/orders`
+Cria pedido.
 
-Cria um pedido.
+Campos obrigatórios: `restaurantId`, `clienteNome`, `clienteTelefone`, `enderecoEntrega`, `itens` (JSON), `subtotal`, `total`.
 
-- **Campos obrigatórios**: `restaurantId`, `clienteNome`, `clienteTelefone`, `enderecoEntrega`, `itens`, `subtotal`, `total`.
-- **Campos opcionais**: `customerId`, `entregadorId`, `numeroPedido`, `clienteEmail`, `taxaEntrega`, `taxaServico`, `desconto`, `cupomUsado`, `status`, `formaPagamento`, `pagamentoStatus`, `pagamentoId`, `tempoEstimadoPreparo`, `tempoEstimadoEntrega`, `observacoesCliente`, `observacoesRestaurante`, `historicoStatus`, `dataConfirmacao`, `dataEntrega`, `avaliacao`.
-- Se `numeroPedido` não for enviado, um identificador `AMA-<timestamp>-<random>` é gerado.
-- Caso `historicoStatus` esteja ausente, é criado automaticamente um histórico inicial com o status atual.
-
-**Respostas**
-- `201` — pedido criado.
-- `400` — campos obrigatórios ausentes.
+**Erros**
+- `400 VALIDATION_ERROR` — payload incompleto.
 
 ### `PUT /api/orders/:id`
-
-Atualiza campos arbitrários do pedido.
+Atualiza um pedido. Recebe qualquer subconjunto do esquema **Order**.
 
 ### `PATCH /api/orders/:id/status`
+Atualiza status do pedido.
 
-Atualiza apenas o status mantendo o histórico.
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `status` | string | ✓ |
+| `note` | string | ✗ |
 
-- **Body obrigatório**: `status`.
-- **Body opcional**: `note` — anotação incluída no histórico.
-- A rota busca o pedido, acrescenta um registro a `historicoStatus` com `timestamp` atual e retorna o pedido atualizado.
+**Erros**
+- `400 VALIDATION_ERROR` — status ausente.
+- `404 ORDER_NOT_FOUND` — pedido inexistente.
 
-**Respostas**
-- `200` — pedido atualizado.
-- `400` — status ausente.
-- `404` — pedido inexistente.
-
-## Entregas
-
-Rota em [`server/src/routes/deliveries.ts`](../server/src/routes/deliveries.ts).
-
-### `GET /api/deliveries`
-
-Query params opcionais: `entregadorId`, `orderId`, `status`. Retorna lista ordenada por `createdDate desc`.
-
-### `GET /api/deliveries/:id`
-
-Retorna uma entrega específica. `404` se não encontrada.
-
-### `POST /api/deliveries`
-
-Cria uma entrega.
-
-- **Campos obrigatórios**: `orderId`, `enderecoColeta`, `enderecoEntrega`, `valorFrete`.
-- **Campos opcionais**: `entregadorId`, `status`, `tempoEstimadoEntrega`, etc.
-
-**Respostas**
-- `201` — entrega criada.
-- `400` — dados obrigatórios ausentes.
-
-### `PUT /api/deliveries/:id`
-
-Atualiza uma entrega existente.
-
-## Entregadores
-
-Definido em [`server/src/routes/entregadores.ts`](../server/src/routes/entregadores.ts).
-
-### `GET /api/entregadores`
-
-Filtros opcionais: `userId`, `email`, `status`, `id`, `aprovado`, `disponivel`.
-
-### `GET /api/entregadores/:id`
-
-Busca um entregador pelo ID. `404` se não existir.
-
-### `POST /api/entregadores`
-
-Cria um entregador. O body é normalizado antes da persistência.
-
-- **Campos obrigatórios**: `email`, `nomeCompleto`, `telefone`.
-- Campos opcionais incluem `userId`, `dataNascimento`, `endereco`, `nif`, `fotoUrl`, `status`, `aprovado`, `veiculoTipo`, `veiculoPlaca`, `disponivel`, `avaliacao`, `totalEntregas`, `latitude`, `longitude`, `iban`, `nomeBanco`, `ultimoLogin`.
-- Campos de data aceitam string (`YYYY-MM-DD` ou ISO) e são convertidos para `Date`.
-
-**Respostas**
-- `201` — entregador criado.
-- `400` — validação falhou.
-
-### `PUT /api/entregadores/:id`
-
-Atualiza um entregador aplicando a mesma normalização.
-
-### `DELETE /api/entregadores/:id`
-
-Remove o registro definitivamente (204).
-
-## Clientes
-
-Rotas em [`server/src/routes/customers.ts`](../server/src/routes/customers.ts).
-
-### `GET /api/customers`
-
-Query params opcionais: `telefone`, `email`, `nome` (busca parcial), `id`.
-
-### `GET /api/customers/:id`
-
-Retorna cliente pelo ID. `404` se não encontrado.
-
-### `POST /api/customers`
-
-Cria cliente.
-
-- **Campos obrigatórios**: `nome`, `telefone`.
-- **Campos opcionais**: `email`, `endereco`, `notas`, etc.
-
-**Respostas**
-- `201` — cliente criado.
-- `400` — validação falhou.
-
-### `PUT /api/customers/:id`
-
-Atualiza cliente existente.
-
-## Carrinhos
-
-Implementados em [`server/src/routes/carts.ts`](../server/src/routes/carts.ts).
+## Carrinhos (`/api/carts`)
 
 ### `GET /api/carts`
-
-Query params opcionais: `sessionId`, `restaurantId`, `id`. Retorna carrinhos ordenados por `updatedDate desc`.
+Filtros: `sessionId`, `restaurantId`, `id`, além de `limit` e `skip`.
 
 ### `GET /api/carts/:id`
-
-Busca carrinho individual. `404` quando não existe.
+Retorna carrinho. `404 CART_NOT_FOUND` caso não exista.
 
 ### `POST /api/carts`
-
 Cria carrinho.
 
-- **Campos obrigatórios**: `sessionId`, `restaurantId`.
-- **Campos opcionais**: `itens`, `subtotal`, `total`, `status`, etc.
+Campos obrigatórios: `sessionId`, `restaurantId`. Demais campos seguem esquema **Cart**.
 
-**Respostas**
-- `201` — carrinho criado.
-- `400` — campos obrigatórios ausentes.
+### `PUT /api/carts/:id` & `DELETE /api/carts/:id`
+Atualiza ou remove carrinho (delete responde `204`).
 
-### `PUT /api/carts/:id`
+## Clientes (`/api/customers`)
 
-Atualiza um carrinho existente.
+### `GET /api/customers`
+Filtros: `telefone`, `email`, `nome`, `id`, mais `limit`/`skip`.
 
-### `DELETE /api/carts/:id`
+### `GET /api/customers/:id`
+Retorna cliente específico. `404 CUSTOMER_NOT_FOUND` quando ausente.
 
-Remove um carrinho. Resposta `204`.
+### `POST /api/customers`
+Cria cliente.
 
-## Alterações de perfil de entregador
+Campos obrigatórios: `nome`, `telefone`.
 
-Rotas em [`server/src/routes/alteracoes-perfil.ts`](../server/src/routes/alteracoes-perfil.ts).
+### `PUT /api/customers/:id`
+Atualiza cliente existente.
+
+## Entregadores (`/api/entregadores`)
+
+### `GET /api/entregadores`
+Filtros: `userId`, `email`, `aprovado`, `disponivel`, `status`, `id`, com suporte a `limit`/`skip`.
+
+### `GET /api/entregadores/:id`
+Retorna entregador. `404 DELIVERY_AGENT_NOT_FOUND` se não encontrado.
+
+### `POST /api/entregadores`
+Cria entregador. Campos obrigatórios: `email`, `nomeCompleto`, `telefone`. Demais campos são opcionais conforme esquema **Entregador**.
+
+### `PUT /api/entregadores/:id`
+Atualiza entregador existente.
+
+### `DELETE /api/entregadores/:id`
+Remove entregador. **Resposta**: `204 No Content`.
+
+## Entregas (`/api/deliveries`)
+
+### `GET /api/deliveries`
+Filtros: `entregadorId`, `orderId`, `status`, com paginação padrão.
+
+### `GET /api/deliveries/:id`
+Retorna entrega. `404 DELIVERY_NOT_FOUND` se ausente.
+
+### `POST /api/deliveries`
+Cria entrega.
+
+Campos obrigatórios: `orderId`, `enderecoColeta`, `enderecoEntrega`, `valorFrete`.
+
+### `PUT /api/deliveries/:id`
+Atualiza entrega existente.
+
+## Alterações de Perfil (`/api/alteracoes-perfil`)
 
 ### `GET /api/alteracoes-perfil`
-
-Query params opcionais: `entregadorId`, `status`. Retorna solicitações ordenadas por `createdDate desc`.
+Filtros: `entregadorId`, `status`, com paginação.
 
 ### `POST /api/alteracoes-perfil`
+Cria uma solicitação de alteração.
 
-Cria uma solicitação de alteração de perfil.
-
-- **Campos obrigatórios**: `entregadorId`, `dadosAntigos`, `dadosNovos`.
-- **Campos opcionais**: `status`, `observacoes`.
-
-**Respostas**
-- `201` — solicitação criada.
-- `400` — validação falhou.
+Campos obrigatórios: `entregadorId`, `dadosAntigos`, `dadosNovos` (JSON).
 
 ### `PUT /api/alteracoes-perfil/:id`
+Atualiza a solicitação (por exemplo, para aprovar ou rejeitar).
 
-Atualiza uma solicitação existente com novos dados ou status.
+## Logs de Logout
+`POST /api/auth/logout` e `POST /api/users/logout` não existem — utilize o endpoint de logout principal e descarte o token localmente.
 
 ---
 
-> **Próximos passos sugeridos:** documentar formatos detalhados de cada payload (schemas), adicionar paginação, autenticação baseada em tokens e exemplos de erro estruturados para elevar o padrão profissional da API.
-
+**Boas práticas sugeridas**
+- Rotacionar `JWT_SECRET` em produção e configurar `JWT_EXPIRES_IN` via variáveis de ambiente.
+- Implementar refresh tokens e escopos específicos por função (`role`).
+- Padronizar códigos de erro em um enum compartilhado entre cliente e servidor.

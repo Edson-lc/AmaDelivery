@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { sessionId, restaurantId, id } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const where: Record<string, unknown> = {};
 
@@ -22,10 +25,17 @@ router.get('/', async (req, res, next) => {
       where.id = String(id);
     }
 
-    const carts = await prisma.cart.findMany({
-      where,
-      orderBy: { updatedDate: 'desc' },
-    });
+    const [total, carts] = await Promise.all([
+      prisma.cart.count({ where }),
+      prisma.cart.findMany({
+        where,
+        orderBy: { updatedDate: 'desc' },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(carts));
   } catch (error) {
@@ -39,7 +49,7 @@ router.get('/:id', async (req, res, next) => {
     const cart = await prisma.cart.findUnique({ where: { id } });
 
     if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
+      return res.status(404).json(buildErrorPayload('CART_NOT_FOUND', 'Carrinho não encontrado.'));
     }
 
     res.json(serialize(cart));
@@ -53,7 +63,9 @@ router.post('/', async (req, res, next) => {
     const data = req.body ?? {};
 
     if (!data.sessionId || !data.restaurantId) {
-      return res.status(400).json({ message: 'sessionId and restaurantId are required.' });
+      return res
+        .status(400)
+        .json(buildErrorPayload('VALIDATION_ERROR', 'sessionId e restaurantId são obrigatórios.'));
     }
 
     const cart = await prisma.cart.create({

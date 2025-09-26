@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { buildErrorPayload, AppError } from '../utils/errors';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 
 const router = Router();
 
@@ -98,7 +100,7 @@ function normalizeCreateInput(body: unknown): Prisma.EntregadorCreateInput {
   const nomeCompleto = toStringOrUndefined(r.nomeCompleto ?? (r as any).nome_completo);
   const telefone = toStringOrUndefined(r.telefone);
   if (!email || !nomeCompleto || !telefone) {
-    throw Object.assign(new Error('email, nomeCompleto e telefone são obrigatórios.'), { status: 400 });
+    throw new AppError(400, 'VALIDATION_ERROR', 'email, nomeCompleto e telefone são obrigatórios.');
   }
 
   const userId = toStringOrUndefined(r.userId ?? (r as any).user_id);
@@ -173,6 +175,7 @@ function normalizeUpdateInput(body: unknown): Prisma.EntregadorUpdateInput {
 router.get('/', async (req, res, next) => {
   try {
     const { userId, email, aprovado, disponivel, status, id } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const where: Record<string, unknown> = {};
 
@@ -200,10 +203,17 @@ router.get('/', async (req, res, next) => {
       where.disponivel = String(disponivel) === 'true';
     }
 
-    const entregadores = await prisma.entregador.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-    });
+    const [total, entregadores] = await Promise.all([
+      prisma.entregador.count({ where }),
+      prisma.entregador.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(entregadores));
   } catch (error) {
@@ -217,7 +227,7 @@ router.get('/:id', async (req, res, next) => {
     const entregador = await prisma.entregador.findUnique({ where: { id } });
 
     if (!entregador) {
-      return res.status(404).json({ message: 'Entregador not found' });
+      return res.status(404).json(buildErrorPayload('DELIVERY_AGENT_NOT_FOUND', 'Entregador não encontrado.'));
     }
 
     res.json(serialize(entregador));
@@ -231,7 +241,7 @@ router.post('/', async (req, res, next) => {
     const data = normalizeCreateInput(req.body ?? {});
 
     if (!data.email || !data.nomeCompleto || !data.telefone) {
-      return res.status(400).json({ message: 'email, nomeCompleto e telefone são obrigatórios.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'email, nomeCompleto e telefone são obrigatórios.'));
     }
 
     const entregador = await prisma.entregador.create({ data });

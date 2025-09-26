@@ -2,12 +2,15 @@ import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { category, status, search, includeMenuItems } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const filters: Record<string, unknown> = {};
 
@@ -31,14 +34,21 @@ router.get('/', async (req, res, next) => {
         : {}),
     };
 
-    const restaurants = await prisma.restaurant.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-      include:
-        includeMenuItems === 'true'
-          ? { menuItems: { orderBy: { nome: 'asc' } } }
-          : undefined,
-    });
+    const [total, restaurants] = await Promise.all([
+      prisma.restaurant.count({ where }),
+      prisma.restaurant.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        include:
+          includeMenuItems === 'true'
+            ? { menuItems: { orderBy: { nome: 'asc' } } }
+            : undefined,
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(restaurants));
   } catch (error) {
@@ -55,7 +65,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!restaurant) {
-      return res.status(404).json({ message: 'Restaurant not found' });
+      return res.status(404).json(buildErrorPayload('RESTAURANT_NOT_FOUND', 'Restaurante n√£o encontrado.'));
     }
 
     res.json(serialize(restaurant));
@@ -83,7 +93,9 @@ router.post('/', async (req, res, next) => {
     } = req.body ?? {};
 
     if (!nome || !endereco || !telefone) {
-      return res.status(400).json({ message: 'nome, endereco e telefone s„o obrigatÛrios.' });
+      return res
+        .status(400)
+        .json(buildErrorPayload('VALIDATION_ERROR', 'nome, endereco e telefone s√£o obrigat√≥rios.'));
     }
 
     const restaurant = await prisma.restaurant.create({

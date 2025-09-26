@@ -2,12 +2,15 @@ import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { restaurantId, category, available, search } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const filters: Record<string, unknown> = {};
 
@@ -35,10 +38,17 @@ router.get('/', async (req, res, next) => {
         : {}),
     };
 
-    const menuItems = await prisma.menuItem.findMany({
-      where,
-      orderBy: { nome: 'asc' },
-    });
+    const [total, menuItems] = await Promise.all([
+      prisma.menuItem.count({ where }),
+      prisma.menuItem.findMany({
+        where,
+        orderBy: { nome: 'asc' },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(menuItems));
   } catch (error) {
@@ -55,7 +65,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!menuItem) {
-      return res.status(404).json({ message: 'Menu item not found' });
+      return res.status(404).json(buildErrorPayload('MENU_ITEM_NOT_FOUND', 'Item de menu n√£o encontrado.'));
     }
 
     res.json(serialize(menuItem));
@@ -69,11 +79,11 @@ router.post('/', async (req, res, next) => {
     const data = req.body ?? {};
 
     if (!data.restaurantId) {
-      return res.status(400).json({ message: 'restaurantId È obrigatÛrio.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'restaurantId √© obrigat√≥rio.'));
     }
 
     if (!data.nome || data.preco === undefined) {
-      return res.status(400).json({ message: 'nome e preco s„o obrigatÛrios.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'nome e preco s√£o obrigat√≥rios.'));
     }
 
     const menuItem = await prisma.menuItem.create({ data });

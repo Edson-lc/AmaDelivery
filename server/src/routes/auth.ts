@@ -3,6 +3,9 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { publicUserSelect } from '../utils/user';
+import { buildErrorPayload } from '../utils/errors';
+import { signAccessToken } from '../utils/auth';
+import authenticate from '../middleware/authenticate';
 
 const router = Router();
 
@@ -11,7 +14,7 @@ router.post('/login', async (req, res, next) => {
     const { email, password } = req.body ?? {};
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'E-mail e senha são obrigatórios.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'E-mail e senha são obrigatórios.'));
     }
 
     const user = await prisma.user.findUnique({
@@ -19,13 +22,13 @@ router.post('/login', async (req, res, next) => {
     });
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ message: 'Credenciais inválidas.' });
+      return res.status(401).json(buildErrorPayload('INVALID_CREDENTIALS', 'Credenciais inválidas.'));
     }
 
     const isValid = await bcrypt.compare(String(password), user.passwordHash);
 
     if (!isValid) {
-      return res.status(401).json({ message: 'Credenciais inválidas.' });
+      return res.status(401).json(buildErrorPayload('INVALID_CREDENTIALS', 'Credenciais inválidas.'));
     }
 
     const now = new Date();
@@ -50,7 +53,16 @@ router.post('/login', async (req, res, next) => {
       select: publicUserSelect,
     });
 
-    res.json(serialize(publicUser));
+    if (!publicUser) {
+      return res.status(500).json(buildErrorPayload('USER_NOT_FOUND', 'Não foi possível carregar os dados do usuário.'));
+    }
+
+    const token = signAccessToken({ id: publicUser.id, email: publicUser.email, role: publicUser.role });
+
+    res.json({
+      token,
+      user: serialize(publicUser),
+    });
   } catch (error) {
     next(error);
   }
@@ -58,6 +70,15 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/logout', (_req, res) => {
   res.status(204).send();
+});
+
+router.get('/me', authenticate, async (req, res, next) => {
+  try {
+    const user = res.locals.authUser;
+    res.json(serialize(user));
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

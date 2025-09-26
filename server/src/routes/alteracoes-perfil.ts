@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { entregadorId, status } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const where: Record<string, unknown> = {};
 
@@ -18,10 +21,17 @@ router.get('/', async (req, res, next) => {
       where.status = String(status);
     }
 
-    const changes = await prisma.alteracaoPerfil.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-    });
+    const [total, changes] = await Promise.all([
+      prisma.alteracaoPerfil.count({ where }),
+      prisma.alteracaoPerfil.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(changes));
   } catch (error) {
@@ -34,7 +44,9 @@ router.post('/', async (req, res, next) => {
     const data = req.body ?? {};
 
     if (!data.entregadorId || !data.dadosAntigos || !data.dadosNovos) {
-      return res.status(400).json({ message: 'entregadorId, dadosAntigos e dadosNovos s„o obrigatÛrios.' });
+      return res
+        .status(400)
+        .json(buildErrorPayload('VALIDATION_ERROR', 'entregadorId, dadosAntigos e dadosNovos s√£o obrigat√≥rios.'));
     }
 
     const change = await prisma.alteracaoPerfil.create({ data });

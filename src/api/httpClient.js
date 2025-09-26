@@ -1,10 +1,19 @@
+import { getAuthToken } from './session';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 function buildHeaders(custom = {}) {
-  return {
+  const token = getAuthToken();
+  const baseHeaders = {
     'Content-Type': 'application/json',
     ...custom,
   };
+
+  if (token) {
+    baseHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  return baseHeaders;
 }
 
 async function handleResponse(response) {
@@ -16,7 +25,12 @@ async function handleResponse(response) {
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    const error = new Error(data?.message || `Request failed with status ${response.status}`);
+    const errorMessage =
+      data?.error?.message ||
+      data?.message ||
+      (typeof data === 'string' ? data : null) ||
+      `Request failed with status ${response.status}`;
+    const error = new Error(errorMessage);
     error.status = response.status;
     error.data = data;
     throw error;

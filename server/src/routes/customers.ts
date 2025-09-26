@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
+import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import { buildErrorPayload } from '../utils/errors';
 
 const router = Router();
 
 router.get('/', async (req, res, next) => {
   try {
     const { telefone, email, nome, id } = req.query;
+    const pagination = parsePagination(req.query as Record<string, unknown>);
 
     const where: Record<string, unknown> = {};
 
@@ -26,10 +29,17 @@ router.get('/', async (req, res, next) => {
       where.id = String(id);
     }
 
-    const customers = await prisma.customer.findMany({
-      where,
-      orderBy: { createdDate: 'desc' },
-    });
+    const [total, customers] = await Promise.all([
+      prisma.customer.count({ where }),
+      prisma.customer.findMany({
+        where,
+        orderBy: { createdDate: 'desc' },
+        ...(pagination.limit !== undefined ? { take: pagination.limit } : {}),
+        ...(pagination.skip !== undefined ? { skip: pagination.skip } : {}),
+      }),
+    ]);
+
+    applyPaginationHeaders(res, pagination, total);
 
     res.json(serialize(customers));
   } catch (error) {
@@ -43,7 +53,7 @@ router.get('/:id', async (req, res, next) => {
     const customer = await prisma.customer.findUnique({ where: { id } });
 
     if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
+      return res.status(404).json(buildErrorPayload('CUSTOMER_NOT_FOUND', 'Cliente n√£o encontrado.'));
     }
 
     res.json(serialize(customer));
@@ -57,7 +67,7 @@ router.post('/', async (req, res, next) => {
     const data = req.body ?? {};
 
     if (!data.nome || !data.telefone) {
-      return res.status(400).json({ message: 'nome e telefone s„o obrigatÛrios.' });
+      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'nome e telefone s√£o obrigat√≥rios.'));
     }
 
     const customer = await prisma.customer.create({ data });
