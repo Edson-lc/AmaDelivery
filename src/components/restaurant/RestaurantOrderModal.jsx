@@ -25,10 +25,11 @@ const statusConfig = {
 };
 
 const nextStatusOptions = {
-  pendente: [{ status: 'confirmado', label: 'Confirmar Pedido', color: 'bg-blue-600 hover:bg-blue-700' }],
-  confirmado: [{ status: 'preparando', label: 'Iniciar Preparo', color: 'bg-orange-600 hover:bg-orange-700' }],
-  preparando: [{ status: 'pronto', label: 'Marcar como Pronto', color: 'bg-purple-600 hover:bg-purple-700' }],
-  pronto: [], // Aguarda entregador
+  pendente: [{ status: "confirmado", label: "Confirmar Pedido", color: "bg-blue-600 hover:bg-blue-700" }],
+  confirmado: [{ status: "preparando", label: "Iniciar Preparo", color: "bg-orange-600 hover:bg-orange-700" }],
+  preparando: [{ status: "pronto", label: "Marcar como Pronto", color: "bg-purple-600 hover:bg-purple-700" }],
+  pronto: [{ status: "saiu_entrega", label: "Saiu para Entrega", color: "bg-indigo-600 hover:bg-indigo-700" }],
+  saiu_entrega: [{ status: "entregue", label: "Finalizar Entrega", color: "bg-green-600 hover:bg-green-700" }],
 };
 
 export default function RestaurantOrderModal({ order, onClose, onStatusUpdate }) {
@@ -62,7 +63,7 @@ export default function RestaurantOrderModal({ order, onClose, onStatusUpdate })
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex justify-between items-center">
-            <span>Pedido #{order.id.slice(-6)}</span>
+            <span>Pedido #{String(order.id ?? "").slice(-6)}</span>
             <Badge className={`${statusConfig[order.status]?.color || ''} border font-medium`}>
               {statusConfig[order.status]?.label || order.status}
             </Badge>

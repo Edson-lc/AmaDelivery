@@ -39,11 +39,14 @@ const statusConfig = {
 };
 
 const nextStatusOptions = {
-  pendente: [{ status: 'confirmado', label: 'Confirmar Pedido' }],
-  confirmado: [{ status: 'preparando', label: 'Iniciar Preparo' }],
-  preparando: [{ status: 'pronto', label: 'Marcar como Pronto' }],
-  pronto: [], // Aguarda entregador
+  pendente: [{ status: "confirmado", label: "Confirmar Pedido" }],
+  confirmado: [{ status: "preparando", label: "Iniciar Preparo" }],
+  preparando: [{ status: "pronto", label: "Marcar como Pronto" }],
+  pronto: [{ status: "saiu_entrega", label: "Saiu para Entrega" }],
+  saiu_entrega: [{ status: "entregue", label: "Finalizar Entrega" }],
 };
+
+const PROGRESS_STATUSES = ["pendente", "confirmado", "preparando", "pronto", "saiu_entrega"];
 
 export default function RestaurantOrdersManager({ restaurantId }) {
   const [orders, setOrders] = useState([]);
@@ -71,7 +74,7 @@ export default function RestaurantOrdersManager({ restaurantId }) {
 
     // Filtro por tab
     if (activeTab === "pendentes") {
-      filtered = filtered.filter(order => ['pendente', 'confirmado', 'preparando', 'pronto'].includes(order.status));
+      filtered = filtered.filter((order) => PROGRESS_STATUSES.includes(order.status));
     } else if (activeTab === "entregues") {
       filtered = filtered.filter(order => order.status === 'entregue');
     } else if (activeTab === "cancelados") {
@@ -80,10 +83,14 @@ export default function RestaurantOrdersManager({ restaurantId }) {
 
     // Filtro por busca
     if (searchTerm) {
-      filtered = filtered.filter(order =>
-        order.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.id.includes(searchTerm)
-      );
+      const normalizedTerm = searchTerm.trim().toLowerCase();
+      filtered = filtered.filter((order) => {
+        const nomeCliente = order.cliente_nome ? order.cliente_nome.toLowerCase() : "";
+        return (
+          nomeCliente.includes(normalizedTerm) ||
+          String(order.id ?? "").toLowerCase().includes(normalizedTerm)
+        );
+      });
     }
 
     // Ordenar por prioridade de status e data
@@ -175,7 +182,7 @@ export default function RestaurantOrdersManager({ restaurantId }) {
             <TabsList className="bg-gray-100 mb-6">
               <TabsTrigger value="pendentes" className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Em Andamento ({orders.filter(o => ['pendente', 'confirmado', 'preparando', 'pronto'].includes(o.status)).length})
+                Em Andamento ({orders.filter((o) => PROGRESS_STATUSES.includes(o.status)).length})
               </TabsTrigger>
               <TabsTrigger value="entregues" className="flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" />
