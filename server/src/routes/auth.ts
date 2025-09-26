@@ -11,7 +11,7 @@ router.post('/login', async (req, res, next) => {
     const { email, password } = req.body ?? {};
 
     if (!email || !password) {
-      return res.status(400).json({ message: 'E-mail e senha s�o obrigat�rios.' });
+      return res.status(400).json({ message: 'E-mail e senha são obrigatórios.' });
     }
 
     const user = await prisma.user.findUnique({
@@ -19,14 +19,31 @@ router.post('/login', async (req, res, next) => {
     });
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ message: 'Credenciais inv�lidas.' });
+      return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
 
     const isValid = await bcrypt.compare(String(password), user.passwordHash);
 
     if (!isValid) {
-      return res.status(401).json({ message: 'Credenciais inv�lidas.' });
+      return res.status(401).json({ message: 'Credenciais inválidas.' });
     }
+
+    const now = new Date();
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { updatedDate: now },
+      }),
+      ...(user.tipoUsuario === 'entregador'
+        ? [
+            prisma.entregador.updateMany({
+              where: { userId: user.id },
+              data: { ultimoLogin: now },
+            }),
+          ]
+        : []),
+    ]);
 
     const publicUser = await prisma.user.findUnique({
       where: { id: user.id },

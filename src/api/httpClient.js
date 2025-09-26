@@ -45,6 +45,7 @@ export async function apiRequest(path, { method = 'GET', headers, body, query } 
     method,
     headers: buildHeaders(headers),
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    credentials: 'include',
   };
 
   if (method === 'GET' || method === 'HEAD') {

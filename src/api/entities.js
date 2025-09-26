@@ -100,14 +100,20 @@ function readStoredUser() {
     return JSON.parse(stored);
   } catch (error) {
     console.warn('Failed to parse stored user', error);
+    window.localStorage.removeItem(USER_STORAGE_KEY);
     return null;
   }
+}
+
+function clearStoredUser() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(USER_STORAGE_KEY);
 }
 
 function writeStoredUser(user) {
   if (typeof window === 'undefined') return;
   if (!user) {
-    window.localStorage.removeItem(USER_STORAGE_KEY);
+    clearStoredUser();
     return;
   }
   window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
@@ -126,6 +132,10 @@ export const User = {
       writeStoredUser(user);
       return user;
     } catch (error) {
+      if (error?.status === 404 || error?.status === 401) {
+        clearStoredUser();
+        return null;
+      }
       console.warn('Failed to refresh stored user, falling back to local copy', error);
       return stored;
     }
@@ -180,17 +190,34 @@ export const User = {
       password: String(creds.password ?? ''),
     };
 
-    if (!normalizedCreds.email || !normalizedCreds.password) {
-      return null;
+    if (!normalizedCreds.email) {
+      throw new Error('Informe um e-mail válido.');
     }
 
-    const data = await apiRequest('/auth/login', {
-      method: 'POST',
-      body: normalizedCreds,
-    });
-    const user = normalizeResponse(data);
-    writeStoredUser(user);
-    return user;
+    if (!normalizedCreds.password) {
+      throw new Error('Informe a sua senha.');
+    }
+
+    try {
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: normalizedCreds,
+      });
+      const user = normalizeResponse(data);
+      writeStoredUser(user);
+      return user;
+    } catch (error) {
+      if (error?.status === 401 || error?.status === 403) {
+        throw new Error('Credenciais inválidas. Verifique o e-mail e a senha informados.');
+      }
+      if (error?.status === 400) {
+        throw new Error(error?.message || 'E-mail e senha são obrigatórios.');
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Não foi possível autenticar. Tente novamente mais tarde.');
+    }
   },
   async loginWithRedirect(redirectUrl) {
     if (typeof window !== 'undefined') {
