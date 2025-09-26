@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { env } from './env';
 import routes from './routes';
+import { ErrorCode } from './shared/error-codes';
 import { buildErrorPayload, mapUnknownError } from './utils/errors';
 
 const app = express();
@@ -22,7 +23,7 @@ app.get('/health', (_req, res) => {
 app.use('/api', routes);
 
 app.use((req, res) => {
-  res.status(404).json(buildErrorPayload('NOT_FOUND', `Endpoint ${req.method} ${req.originalUrl} not found`));
+  res.status(404).json(buildErrorPayload(ErrorCode.NOT_FOUND, `Endpoint ${req.method} ${req.originalUrl} not found`));
 });
 
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

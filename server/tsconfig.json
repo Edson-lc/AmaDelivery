@@ -12,8 +12,8 @@
                             "resolveJsonModule":  true,
                             "types":  [
                                           "node"
-                                      ],
-                        
+                                      ]
+
                         },
     "include":  [
                     "src"

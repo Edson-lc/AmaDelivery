@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { extractTokenFromHeader, verifyAccessToken } from '../utils/auth';
 import { AppError, buildErrorPayload } from '../utils/errors';
@@ -10,6 +11,7 @@ declare module 'express-serve-static-core' {
       id: string;
       email: string;
       role?: string | null;
+      scopes: string[];
     };
   }
 }
@@ -25,16 +27,17 @@ export default async function authenticate(req: Request, res: Response, next: Ne
     });
 
     if (!user) {
-      throw new AppError(401, 'USER_NOT_FOUND', 'Usuário associado ao token não encontrado.');
+      throw new AppError(401, ErrorCode.USER_NOT_FOUND, 'Usuário associado ao token não encontrado.');
     }
 
-    req.authUser = { id: user.id, email: user.email, role: user.role };
+    req.authUser = { id: user.id, email: user.email, role: user.role, scopes: payload.scopes };
     res.locals.authUser = user;
     res.locals.tokenPayload = payload;
-
+    
     next();
   } catch (error) {
-    const appError = error instanceof AppError ? error : new AppError(401, 'INVALID_TOKEN', 'Token inválido ou expirado.');
+    const appError =
+      error instanceof AppError ? error : new AppError(401, ErrorCode.INVALID_TOKEN, 'Token inválido ou expirado.');
     res.status(appError.status).json(buildErrorPayload(appError.code, appError.message));
   }
 }

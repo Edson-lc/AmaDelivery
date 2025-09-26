@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { buildErrorPayload, AppError } from '../utils/errors';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
@@ -100,7 +102,7 @@ function normalizeCreateInput(body: unknown): Prisma.EntregadorCreateInput {
   const nomeCompleto = toStringOrUndefined(r.nomeCompleto ?? (r as any).nome_completo);
   const telefone = toStringOrUndefined(r.telefone);
   if (!email || !nomeCompleto || !telefone) {
-    throw new AppError(400, 'VALIDATION_ERROR', 'email, nomeCompleto e telefone são obrigatórios.');
+    throw new AppError(400, ErrorCode.VALIDATION_ERROR, 'email, nomeCompleto e telefone são obrigatórios.');
   }
 
   const userId = toStringOrUndefined(r.userId ?? (r as any).user_id);
@@ -172,7 +174,7 @@ function normalizeUpdateInput(body: unknown): Prisma.EntregadorUpdateInput {
   return input;
 }
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('entregadores:read'), async (req, res, next) => {
   try {
     const { userId, email, aprovado, disponivel, status, id } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -221,13 +223,15 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('entregadores:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const entregador = await prisma.entregador.findUnique({ where: { id } });
 
     if (!entregador) {
-      return res.status(404).json(buildErrorPayload('DELIVERY_AGENT_NOT_FOUND', 'Entregador não encontrado.'));
+      return res
+        .status(404)
+        .json(buildErrorPayload(ErrorCode.DELIVERY_AGENT_NOT_FOUND, 'Entregador não encontrado.'));
     }
 
     res.json(serialize(entregador));
@@ -236,12 +240,14 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('entregadores:write'), async (req, res, next) => {
   try {
     const data = normalizeCreateInput(req.body ?? {});
 
     if (!data.email || !data.nomeCompleto || !data.telefone) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'email, nomeCompleto e telefone são obrigatórios.'));
+      return res
+        .status(400)
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'email, nomeCompleto e telefone são obrigatórios.'));
     }
 
     const entregador = await prisma.entregador.create({ data });
@@ -251,7 +257,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('entregadores:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = normalizeUpdateInput(req.body ?? {});
@@ -267,7 +273,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireScope('entregadores:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     await prisma.entregador.delete({ where: { id } });

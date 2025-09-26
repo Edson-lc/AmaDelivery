@@ -1,15 +1,17 @@
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { publicUserSelect } from '../utils/user';
 import { buildErrorPayload } from '../utils/errors';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('users:write'), async (req, res, next) => {
   try {
     const body = (req.body ?? {}) as (Prisma.UserCreateInput & { password?: string }) | Record<string, unknown>;
 
@@ -18,7 +20,9 @@ router.post('/', async (req, res, next) => {
     const password = (body as any).password as string | undefined;
 
     if (!email || !fullName) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'E-mail e nome completo são obrigatórios.'));
+      return res
+        .status(400)
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'E-mail e nome completo são obrigatórios.'));
     }
 
     let passwordHash: string | undefined;
@@ -89,13 +93,13 @@ router.post('/', async (req, res, next) => {
   } catch (error: any) {
     // Handle unique email constraint
     if (error?.code === 'P2002') {
-      return res.status(409).json(buildErrorPayload('EMAIL_ALREADY_REGISTERED', 'E-mail já cadastrado.'));
+      return res.status(409).json(buildErrorPayload(ErrorCode.EMAIL_ALREADY_REGISTERED, 'E-mail já cadastrado.'));
     }
     return next(error);
   }
 });
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('users:read'), async (req, res, next) => {
   try {
     const { email, role, tipoUsuario, id } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -137,10 +141,10 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/me', async (req, res, next) => {
+router.get('/me', requireScope('profile:read'), async (req, res, next) => {
   try {
     if (!res.locals.authUser) {
-      return res.status(401).json(buildErrorPayload('UNAUTHENTICATED', 'Sessão expirada ou inválida.'));
+      return res.status(401).json(buildErrorPayload(ErrorCode.UNAUTHENTICATED, 'Sessão expirada ou inválida.'));
     }
 
     res.json(serialize(res.locals.authUser));
@@ -149,7 +153,7 @@ router.get('/me', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('users:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const user = await prisma.user.findUnique({
@@ -158,7 +162,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(404).json(buildErrorPayload('USER_NOT_FOUND', 'Usuário não encontrado.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.USER_NOT_FOUND, 'Usuário não encontrado.'));
     }
 
     res.json(serialize(user));
@@ -167,7 +171,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('users:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const body = (req.body ?? {}) as (Prisma.UserUpdateInput & { password?: string; endereco?: unknown }) | Record<string, unknown>;

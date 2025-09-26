@@ -1,13 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('menu-items:read'), async (req, res, next) => {
   try {
     const { restaurantId, category, available, search } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -56,7 +58,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('menu-items:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const menuItem = await prisma.menuItem.findUnique({
@@ -65,7 +67,9 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!menuItem) {
-      return res.status(404).json(buildErrorPayload('MENU_ITEM_NOT_FOUND', 'Item de menu não encontrado.'));
+      return res
+        .status(404)
+        .json(buildErrorPayload(ErrorCode.MENU_ITEM_NOT_FOUND, 'Item de menu não encontrado.'));
     }
 
     res.json(serialize(menuItem));
@@ -74,16 +78,20 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('menu-items:write'), async (req, res, next) => {
   try {
     const data = req.body ?? {};
 
     if (!data.restaurantId) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'restaurantId é obrigatório.'));
+      return res
+        .status(400)
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'restaurantId é obrigatório.'));
     }
 
     if (!data.nome || data.preco === undefined) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'nome e preco são obrigatórios.'));
+      return res
+        .status(400)
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'nome e preco são obrigatórios.'));
     }
 
     const menuItem = await prisma.menuItem.create({ data });
@@ -93,7 +101,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('menu-items:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};
@@ -109,7 +117,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireScope('menu-items:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     await prisma.menuItem.delete({ where: { id } });

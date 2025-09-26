@@ -7,10 +7,11 @@ Esta referência cataloga todos os endpoints do backend Express expostos sob o p
 ### Autenticação baseada em token
 - **Header obrigatório**: `Authorization: Bearer <token>` em todas as chamadas autenticadas.
 - **Ciclo de sessão**:
-  1. Envie `POST /api/auth/login` com credenciais válidas para receber um `token` JWT de curta duração e o objeto `user` público.
-  2. Armazene o token com segurança no cliente e anexe o header `Authorization` nas requisições subsequentes.
-  3. Utilize `GET /api/auth/me` para sincronizar o perfil atual sem depender de IDs armazenados no cliente.
-  4. Opcionalmente, chame `POST /api/auth/logout` para encerrar a sessão do lado do cliente.
+  1. Envie `POST /api/auth/login` com credenciais válidas para receber um `token` JWT de curta duração, um `refresh_token` rotativo e o objeto `user` público.
+  2. Armazene ambos os tokens com segurança; utilize o JWT no header `Authorization` das requisições subsequentes.
+  3. Antes do access token expirar, troque o `refresh_token` por um novo par de tokens via `POST /api/auth/refresh`.
+  4. Utilize `GET /api/auth/me` para sincronizar o perfil atual sem depender de IDs armazenados no cliente.
+  5. Chame `POST /api/auth/logout` (enviando o `refresh_token` atual) para revogar a sessão do lado do servidor quando necessário.
 
 ### Paginação
 - **Query params**: `limit` (máx. 100) e `skip` (deslocamento inicial) estão disponíveis em todos os endpoints de listagem.
@@ -34,6 +35,12 @@ Todas as falhas retornam o formato:
 }
 ```
 Exemplos de códigos: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`, `RESTAURANT_NOT_FOUND`, `UNAUTHENTICATED`.
+
+### Escopos por função (`role`)
+As rotas autenticadas verificam escopos associados à função do usuário. Chamadas sem permissão retornam `403 INVALID_SCOPE`.
+
+- **admin** – acesso total a todos os recursos.
+- **user** – escopos: `auth:refresh`, `profile:read`, `profile:write`, `restaurants:read`, `restaurants:write`, `menu-items:read`, `menu-items:write`, `orders:read`, `orders:write`, `carts:read`, `carts:write`, `customers:read`, `customers:write`, `deliveries:read`, `deliveries:write`, `alteracoes-perfil:read`, `alteracoes-perfil:write`.
 
 ### Schemas compartilhados
 Os objetos retornados seguem os esquemas abaixo (chaves em `snake_case`). Tipos numéricos utilizam JSON number, datas são strings ISO 8601.
@@ -80,6 +87,10 @@ Autentica por e-mail e senha.
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": "15m",
+  "refresh_token": "94e1c9f4...",
+  "refresh_token_expires_at": "2024-08-01T12:34:56.000Z",
+  "scopes": ["profile:read", "orders:read"],
   "user": { "id": "...", "email": "...", "full_name": "..." }
 }
 ```
@@ -89,7 +100,43 @@ Autentica por e-mail e senha.
 - `401 INVALID_CREDENTIALS` – credenciais incorretas.
 
 ### `POST /api/auth/logout`
-Encerrar sessão no cliente. **Resposta**: `204 No Content`.
+Revoga o refresh token ativo (quando enviado) e encerra a sessão no cliente.
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `refreshToken` | string | ✗ | Token de refresh atual a ser invalidado. |
+
+**Resposta**: `204 No Content`.
+
+**Erros comuns**
+- `401 INVALID_REFRESH_TOKEN` – token inexistente ou já revogado.
+- `401 REFRESH_TOKEN_EXPIRED` – token de refresh expirado.
+- `401 REFRESH_TOKEN_REVOKED` – token previamente invalidado.
+
+### `POST /api/auth/refresh`
+Gera um novo par de tokens a partir de um refresh token válido.
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `refreshToken` | string | ✓ | Token de refresh ativo retornado no login anterior. |
+
+**Resposta 200**
+```json
+{
+  "token": "eyJhbGciOi...",
+  "expires_in": "15m",
+  "refresh_token": "28b7ec9a...",
+  "refresh_token_expires_at": "2024-08-15T10:00:00.000Z",
+  "scopes": ["profile:read", "orders:read"],
+  "user": { "id": "...", "email": "..." }
+}
+```
+
+**Erros comuns**
+- `400 REFRESH_TOKEN_REQUIRED` – corpo sem `refreshToken`.
+- `401 INVALID_REFRESH_TOKEN` – token inexistente.
+- `401 REFRESH_TOKEN_REVOKED` – token revogado em logout ou uso prévio.
+- `401 REFRESH_TOKEN_EXPIRED` – token expirado.
 
 ### `GET /api/auth/me`
 Retorna o usuário autenticado a partir do token.

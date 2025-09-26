@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('deliveries:read'), async (req, res, next) => {
   try {
     const { entregadorId, orderId, status } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -43,13 +45,13 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('deliveries:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const delivery = await prisma.delivery.findUnique({ where: { id } });
 
     if (!delivery) {
-      return res.status(404).json(buildErrorPayload('DELIVERY_NOT_FOUND', 'Entrega não encontrada.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.DELIVERY_NOT_FOUND, 'Entrega não encontrada.'));
     }
 
     res.json(serialize(delivery));
@@ -58,19 +60,17 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('deliveries:write'), async (req, res, next) => {
   try {
     const data = req.body ?? {};
 
     if (!data.orderId || !data.enderecoColeta || !data.enderecoEntrega || data.valorFrete === undefined) {
-      return res
-        .status(400)
-        .json(
-          buildErrorPayload(
-            'VALIDATION_ERROR',
-            'orderId, enderecoColeta, enderecoEntrega e valorFrete são obrigatórios.',
-          ),
-        );
+      return res.status(400).json(
+        buildErrorPayload(
+          ErrorCode.VALIDATION_ERROR,
+          'orderId, enderecoColeta, enderecoEntrega e valorFrete são obrigatórios.',
+        ),
+      );
     }
 
     const delivery = await prisma.delivery.create({ data });
@@ -80,7 +80,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('deliveries:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};

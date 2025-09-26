@@ -1,15 +1,17 @@
+import { ErrorCode } from '../shared/error-codes';
+
 export interface ErrorPayload {
-  code: string;
+  code: ErrorCode;
   message: string;
   details?: unknown;
 }
 
 export class AppError extends Error {
   public readonly status: number;
-  public readonly code: string;
+  public readonly code: ErrorCode;
   public readonly details?: unknown;
 
-  constructor(status: number, code: string, message: string, details?: unknown) {
+  constructor(status: number, code: ErrorCode, message: string, details?: unknown) {
     super(message);
     this.status = status;
     this.code = code;
@@ -17,7 +19,7 @@ export class AppError extends Error {
   }
 }
 
-export function buildErrorPayload(code: string, message: string, details?: unknown): { error: ErrorPayload } {
+export function buildErrorPayload(code: ErrorCode, message: string, details?: unknown): { error: ErrorPayload } {
   return {
     error: {
       code,
@@ -33,8 +35,8 @@ export function mapUnknownError(error: unknown): AppError {
   }
 
   if (error instanceof Error) {
-    return new AppError(500, 'INTERNAL_SERVER_ERROR', error.message);
+    return new AppError(500, ErrorCode.INTERNAL_SERVER_ERROR, error.message);
   }
 
-  return new AppError(500, 'INTERNAL_SERVER_ERROR', 'Unexpected error');
+  return new AppError(500, ErrorCode.INTERNAL_SERVER_ERROR, 'Unexpected error');
 }

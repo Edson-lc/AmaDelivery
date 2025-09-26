@@ -1,13 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('orders:read'), async (req, res, next) => {
   try {
     const { status, restaurantId, customerId, entregadorId, dateFrom, dateTo } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -71,7 +73,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('orders:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const order = await prisma.order.findUnique({
@@ -85,7 +87,7 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!order) {
-      return res.status(404).json(buildErrorPayload('ORDER_NOT_FOUND', 'Pedido não encontrado.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.ORDER_NOT_FOUND, 'Pedido não encontrado.'));
     }
 
     res.json(serialize(order));
@@ -94,7 +96,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('orders:write'), async (req, res, next) => {
   try {
     const {
       customerId,
@@ -127,14 +129,12 @@ router.post('/', async (req, res, next) => {
     } = req.body ?? {};
 
     if (!restaurantId || !clienteNome || !clienteTelefone || !enderecoEntrega || !itens || subtotal === undefined || total === undefined) {
-      return res
-        .status(400)
-        .json(
-          buildErrorPayload(
-            'VALIDATION_ERROR',
-            'Campos obrigatórios: restaurantId, clienteNome, clienteTelefone, enderecoEntrega, itens, subtotal, total.',
-          ),
-        );
+      return res.status(400).json(
+        buildErrorPayload(
+          ErrorCode.VALIDATION_ERROR,
+          'Campos obrigatórios: restaurantId, clienteNome, clienteTelefone, enderecoEntrega, itens, subtotal, total.',
+        ),
+      );
     }
 
     const generatedNumber = numeroPedido ?? `AMA-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -184,7 +184,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('orders:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};
@@ -200,19 +200,19 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/status', async (req, res, next) => {
+router.patch('/:id/status', requireScope('orders:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status, note } = req.body ?? {};
 
     if (!status) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'status é obrigatório.'));
+      return res.status(400).json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'status é obrigatório.'));
     }
 
     const existing = await prisma.order.findUnique({ where: { id } });
 
     if (!existing) {
-      return res.status(404).json(buildErrorPayload('ORDER_NOT_FOUND', 'Pedido não encontrado.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.ORDER_NOT_FOUND, 'Pedido não encontrado.'));
     }
 
     const historyEntries = Array.isArray(existing.historicoStatus)

@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('carts:read'), async (req, res, next) => {
   try {
     const { sessionId, restaurantId, id } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -43,13 +45,13 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('carts:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const cart = await prisma.cart.findUnique({ where: { id } });
 
     if (!cart) {
-      return res.status(404).json(buildErrorPayload('CART_NOT_FOUND', 'Carrinho não encontrado.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.CART_NOT_FOUND, 'Carrinho não encontrado.'));
     }
 
     res.json(serialize(cart));
@@ -58,14 +60,14 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('carts:write'), async (req, res, next) => {
   try {
     const data = req.body ?? {};
 
     if (!data.sessionId || !data.restaurantId) {
       return res
         .status(400)
-        .json(buildErrorPayload('VALIDATION_ERROR', 'sessionId e restaurantId são obrigatórios.'));
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'sessionId e restaurantId são obrigatórios.'));
     }
 
     const cart = await prisma.cart.create({
@@ -78,7 +80,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('carts:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};
@@ -94,7 +96,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireScope('carts:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     await prisma.cart.delete({ where: { id } });

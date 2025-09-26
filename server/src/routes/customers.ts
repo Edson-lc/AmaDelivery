@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('customers:read'), async (req, res, next) => {
   try {
     const { telefone, email, nome, id } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -47,13 +49,13 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('customers:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
 
     if (!customer) {
-      return res.status(404).json(buildErrorPayload('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.'));
+      return res.status(404).json(buildErrorPayload(ErrorCode.CUSTOMER_NOT_FOUND, 'Cliente não encontrado.'));
     }
 
     res.json(serialize(customer));
@@ -62,12 +64,14 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('customers:write'), async (req, res, next) => {
   try {
     const data = req.body ?? {};
 
     if (!data.nome || !data.telefone) {
-      return res.status(400).json(buildErrorPayload('VALIDATION_ERROR', 'nome e telefone são obrigatórios.'));
+      return res
+        .status(400)
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'nome e telefone são obrigatórios.'));
     }
 
     const customer = await prisma.customer.create({ data });
@@ -77,7 +81,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('customers:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};

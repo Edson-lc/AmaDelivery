@@ -1,3 +1,4 @@
+import { ErrorCode } from '../shared/error-codes';
 import { AppError } from './errors';
 
 const DEFAULT_LIMIT = 25;
@@ -18,7 +19,7 @@ export function parsePagination(query: Record<string, unknown>): PaginationParam
   if (limitParam !== undefined) {
     const parsed = Number(limitParam);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      throw new AppError(400, 'INVALID_PAGINATION', 'O parâmetro limit deve ser um número positivo.');
+      throw new AppError(400, ErrorCode.INVALID_PAGINATION, 'O parâmetro limit deve ser um número positivo.');
     }
     limit = Math.min(Math.trunc(parsed), MAX_LIMIT);
   }
@@ -26,7 +27,7 @@ export function parsePagination(query: Record<string, unknown>): PaginationParam
   if (skipParam !== undefined) {
     const parsed = Number(skipParam);
     if (!Number.isFinite(parsed) || parsed < 0) {
-      throw new AppError(400, 'INVALID_PAGINATION', 'O parâmetro skip deve ser um número maior ou igual a zero.');
+      throw new AppError(400, ErrorCode.INVALID_PAGINATION, 'O parâmetro skip deve ser um número maior ou igual a zero.');
     }
     skip = Math.trunc(parsed);
   }

@@ -1,5 +1,12 @@
 import { apiRequest, toSnakeCase, toCamelCaseKey, transformKeysShallow } from './httpClient';
-import { readAuth, writeAuth, clearAuth, getStoredUser } from './session';
+import {
+  readAuth,
+  clearAuth,
+  getStoredUser,
+  setAuthTokens,
+  setAuthUser,
+  getRefreshToken,
+} from './session';
 
 function normalizeResponse(data) {
   return toSnakeCase(data);
@@ -100,7 +107,7 @@ export const User = {
     try {
       const data = await apiRequest('/auth/me');
       const user = normalizeResponse(data);
-      writeAuth({ ...currentAuth, user });
+      setAuthUser(user);
       return user;
     } catch (error) {
       if (error?.status === 401) {
@@ -135,7 +142,7 @@ export const User = {
     const user = normalizeResponse(data);
     const auth = readAuth();
     if (auth?.user?.id === user.id) {
-      writeAuth({ ...auth, user });
+      setAuthUser(user);
     }
     return user;
   },
@@ -181,10 +188,26 @@ export const User = {
       const userPayload = normalized?.user ?? normalized?.data?.user;
       const user = userPayload ? normalizeResponse(userPayload) : null;
       const token = normalized?.token ?? data?.token;
-      if (!user || !token) {
+      const refreshToken =
+        normalized?.refresh_token ?? normalized?.data?.refresh_token ?? data?.refreshToken ?? null;
+      const refreshTokenExpiresAt =
+        normalized?.refresh_token_expires_at ?? normalized?.data?.refresh_token_expires_at ?? data?.refreshTokenExpiresAt ?? null;
+      const scopes = Array.isArray(normalized?.scopes)
+        ? normalized.scopes
+        : Array.isArray(data?.scopes)
+        ? data.scopes
+        : [];
+      if (!user || !token || !refreshToken) {
         throw new Error('Resposta de autenticação incompleta.');
       }
-      writeAuth({ user, token });
+      setAuthTokens({
+        token,
+        refreshToken,
+        tokenExpiresAt: null,
+        refreshTokenExpiresAt,
+        scopes,
+      });
+      setAuthUser(user);
       return user;
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) {
@@ -209,7 +232,11 @@ export const User = {
   },
   async logout() {
     try {
-      await apiRequest('/auth/logout', { method: 'POST' });
+      const refreshToken = getRefreshToken();
+      await apiRequest('/auth/logout', {
+        method: 'POST',
+        body: refreshToken ? { refreshToken } : undefined,
+      });
     } catch (error) {
       // Ignorar erros de logout
     }

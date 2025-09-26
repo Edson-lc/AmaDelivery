@@ -1,13 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('restaurants:read'), async (req, res, next) => {
   try {
     const { category, status, search, includeMenuItems } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -56,7 +58,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', requireScope('restaurants:read'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const restaurant = await prisma.restaurant.findUnique({
@@ -65,7 +67,9 @@ router.get('/:id', async (req, res, next) => {
     });
 
     if (!restaurant) {
-      return res.status(404).json(buildErrorPayload('RESTAURANT_NOT_FOUND', 'Restaurante não encontrado.'));
+      return res
+        .status(404)
+        .json(buildErrorPayload(ErrorCode.RESTAURANT_NOT_FOUND, 'Restaurante não encontrado.'));
     }
 
     res.json(serialize(restaurant));
@@ -74,7 +78,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('restaurants:write'), async (req, res, next) => {
   try {
     const {
       nome,
@@ -95,7 +99,7 @@ router.post('/', async (req, res, next) => {
     if (!nome || !endereco || !telefone) {
       return res
         .status(400)
-        .json(buildErrorPayload('VALIDATION_ERROR', 'nome, endereco e telefone são obrigatórios.'));
+        .json(buildErrorPayload(ErrorCode.VALIDATION_ERROR, 'nome, endereco e telefone são obrigatórios.'));
     }
 
     const restaurant = await prisma.restaurant.create({
@@ -122,7 +126,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('restaurants:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};
@@ -138,7 +142,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireScope('restaurants:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     await prisma.restaurant.delete({ where: { id } });

@@ -1,12 +1,14 @@
 import { Router } from 'express';
+import { ErrorCode } from '../shared/error-codes';
 import prisma from '../lib/prisma';
 import { serialize } from '../utils/serialization';
 import { parsePagination, applyPaginationHeaders } from '../utils/pagination';
 import { buildErrorPayload } from '../utils/errors';
+import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requireScope('alteracoes-perfil:read'), async (req, res, next) => {
   try {
     const { entregadorId, status } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -39,14 +41,17 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireScope('alteracoes-perfil:write'), async (req, res, next) => {
   try {
     const data = req.body ?? {};
 
     if (!data.entregadorId || !data.dadosAntigos || !data.dadosNovos) {
-      return res
-        .status(400)
-        .json(buildErrorPayload('VALIDATION_ERROR', 'entregadorId, dadosAntigos e dadosNovos são obrigatórios.'));
+      return res.status(400).json(
+        buildErrorPayload(
+          ErrorCode.VALIDATION_ERROR,
+          'entregadorId, dadosAntigos e dadosNovos são obrigatórios.',
+        ),
+      );
     }
 
     const change = await prisma.alteracaoPerfil.create({ data });
@@ -56,7 +61,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireScope('alteracoes-perfil:write'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = req.body ?? {};
