@@ -9,13 +9,13 @@ import deliveriesRouter from './deliveries';
 import alteracoesPerfilRouter from './alteracoes-perfil';
 import usersRouter from './users';
 import authRouter from './auth';
-import authenticate from '../middleware/authenticate';
+import authenticateUnlessPublic from '../middleware/authenticate-unless-public';
 
 const router = Router();
 
 router.use('/auth', authRouter);
 
-router.use(authenticate);
+router.use(authenticateUnlessPublic);
 
 router.use('/restaurants', restaurantsRouter);
 router.use('/menu-items', menuItemsRouter);

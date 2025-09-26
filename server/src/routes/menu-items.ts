@@ -9,7 +9,7 @@ import requireScope from '../middleware/require-scope';
 
 const router = Router();
 
-router.get('/', requireScope('menu-items:read'), async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { restaurantId, category, available, search } = req.query;
     const pagination = parsePagination(req.query as Record<string, unknown>);
@@ -58,7 +58,7 @@ router.get('/', requireScope('menu-items:read'), async (req, res, next) => {
   }
 });
 
-router.get('/:id', requireScope('menu-items:read'), async (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
     const { id } = req.params;
     const menuItem = await prisma.menuItem.findUnique({
