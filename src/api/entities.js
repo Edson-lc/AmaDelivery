@@ -1,4 +1,5 @@
 import { apiRequest, toSnakeCase, toCamelCaseKey, transformKeysShallow } from './httpClient';
+import { readAuth, writeAuth, clearAuth, getStoredUser } from './session';
 
 function normalizeResponse(data) {
   return toSnakeCase(data);
@@ -90,43 +91,37 @@ export const Entregador = createEntityClient('entregadores');
 export const Delivery = createEntityClient('deliveries');
 export const AlteracaoPerfil = createEntityClient('alteracoes-perfil');
 
-const USER_STORAGE_KEY = 'amaeats_user';
-
-function readStoredUser() {
-  if (typeof window === 'undefined') return null;
-  const stored = window.localStorage.getItem(USER_STORAGE_KEY);
-  if (!stored) return null;
-  try {
-    return JSON.parse(stored);
-  } catch (error) {
-    console.warn('Failed to parse stored user', error);
-    return null;
-  }
-}
-
-function writeStoredUser(user) {
-  if (typeof window === 'undefined') return;
-  if (!user) {
-    window.localStorage.removeItem(USER_STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-}
-
 export const User = {
   async me() {
-    const stored = readStoredUser();
-    if (!stored?.id) {
-      return null;
+    const currentAuth = readAuth();
+    if (currentAuth?.expiresAt && currentAuth.expiresAt < Date.now()) {
+      clearAuth();
     }
-
     try {
-      const data = await apiRequest(`/users/${stored.id}`);
-      const user = normalizeResponse(data);
-      writeStoredUser(user);
+      const data = await apiRequest('/auth/me');
+      const { expiresAt, expires_at: snakeExpiresAt, ...rest } = data ?? {};
+      const user = normalizeResponse(rest);
+      const expiresAtValue =
+        typeof expiresAt === 'number'
+          ? expiresAt
+          : typeof snakeExpiresAt === 'number'
+            ? snakeExpiresAt
+            : currentAuth?.expiresAt;
+      const nextAuth = {
+        user,
+        ...(typeof expiresAtValue === 'number' ? { expiresAt: expiresAtValue } : {}),
+      };
+      writeAuth(nextAuth);
       return user;
     } catch (error) {
-      console.warn('Failed to refresh stored user, falling back to local copy', error);
+      if (error?.status === 401) {
+        clearAuth();
+        return null;
+      }
+      const stored = getStoredUser();
+      if (stored) {
+        console.warn('Failed to refresh stored user, falling back to local copy', error);
+      }
       return stored;
     }
   },
@@ -149,9 +144,9 @@ export const User = {
       body,
     });
     const user = normalizeResponse(data);
-    const stored = readStoredUser();
-    if (stored?.id === user.id) {
-      writeStoredUser(user);
+    const auth = readAuth();
+    if (auth?.user?.id === user.id) {
+      writeAuth({ ...auth, user });
     }
     return user;
   },
@@ -180,17 +175,47 @@ export const User = {
       password: String(creds.password ?? ''),
     };
 
-    if (!normalizedCreds.email || !normalizedCreds.password) {
-      return null;
+    if (!normalizedCreds.email) {
+      throw new Error('Informe um e-mail válido.');
     }
 
-    const data = await apiRequest('/auth/login', {
-      method: 'POST',
-      body: normalizedCreds,
-    });
-    const user = normalizeResponse(data);
-    writeStoredUser(user);
-    return user;
+    if (!normalizedCreds.password) {
+      throw new Error('Informe a sua senha.');
+    }
+
+    try {
+      const data = await apiRequest('/auth/login', {
+        method: 'POST',
+        body: normalizedCreds,
+      });
+      const { user: rawUser, data: nested, expiresAt, expires_at: snakeExpiresAt } = data ?? {};
+      const userPayload = rawUser ?? nested?.user ?? rawUser;
+      const user = userPayload ? normalizeResponse(userPayload) : normalizeResponse(data);
+      if (!user) {
+        throw new Error('Resposta de autenticação incompleta.');
+      }
+      const nextAuth = {
+        user,
+        ...(typeof expiresAt === 'number'
+          ? { expiresAt }
+          : typeof snakeExpiresAt === 'number'
+            ? { expiresAt: snakeExpiresAt }
+            : {}),
+      };
+      writeAuth(nextAuth);
+      return user;
+    } catch (error) {
+      if (error?.status === 401 || error?.status === 403) {
+        throw new Error('Credenciais inválidas. Verifique o e-mail e a senha informados.');
+      }
+      if (error?.status === 400) {
+        throw new Error(error?.message || 'E-mail e senha são obrigatórios.');
+      }
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Não foi possível autenticar. Tente novamente mais tarde.');
+    }
   },
   async loginWithRedirect(redirectUrl) {
     if (typeof window !== 'undefined') {
@@ -206,7 +231,7 @@ export const User = {
     } catch (error) {
       // Ignorar erros de logout
     }
-    writeStoredUser(null);
+    clearAuth();
     return true;
   },
 };

@@ -1,40 +1,48 @@
 {
-    "name":  "server",
-    "version":  "1.0.0",
-    "main":  "index.js",
-    "scripts":  {
-                    "dev":  "tsx watch src/server.ts",
-                    "build":  "tsc",
-                    "start":  "node dist/server.js",
-                    "lint":  "eslint .",
-                    "prisma:generate":  "prisma generate",
-                    "prisma:push":  "prisma db push",
-                    "prisma:migrate":  "prisma migrate dev",
-                    "test":  "echo \"No tests yet\"",
-                    "seed":  "prisma db seed"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "description":  "AmaEats backend",
-    "dependencies":  {
-                         "@prisma/client":  "^6.16.2",
-                         "bcryptjs":  "^2.4.3",
-                         "cors":  "^2.8.5",
-                         "dotenv":  "^17.2.2",
-                         "express":  "^5.1.0"
-                     },
-    "devDependencies":  {
-                            "@types/cors":  "^2.8.19",
-                            "@types/express":  "^5.0.3",
-                            "@types/node":  "^24.5.2",
-                            "prisma":  "^6.16.2",
-                            "tsx":  "^4.20.5",
-                            "typescript":  "^5.9.2"
-                        },
-    "prisma":  {
-                   "seed":  "tsx prisma/seed.ts"
-               }
+    "name": "server",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "tsc",
+        "start": "node dist/server.js",
+        "lint": "eslint .",
+        "prisma:generate": "prisma generate",
+        "prisma:push": "prisma db push",
+        "prisma:migrate": "prisma migrate dev",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "seed": "prisma db seed"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "AmaEats backend",
+    "dependencies": {
+        "@prisma/client": "^6.16.2",
+        "bcryptjs": "^2.4.3",
+        "compression": "^1.8.1",
+        "cookie-parser": "^1.4.7",
+        "cors": "^2.8.5",
+        "dotenv": "^17.2.2",
+        "express": "^5.1.0",
+        "express-rate-limit": "^7.5.1",
+        "helmet": "^8.1.0",
+        "zod": "^4.1.11"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.3",
+        "@types/node": "^24.5.2",
+        "@types/supertest": "^6.0.3",
+        "prisma": "^6.16.2",
+        "supertest": "^7.1.4",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.20.5",
+        "typescript": "^5.9.2",
+        "vitest": "^3.2.4"
+    },
+    "prisma": {
+        "seed": "tsx prisma/seed.ts"
+    }
 }

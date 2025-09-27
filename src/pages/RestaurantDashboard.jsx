@@ -15,6 +15,7 @@ import RecentOrders from "@/components/dashboard/RecentOrders";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 
 const VALID_TABS = new Set(["overview", "orders", "menu", "reports"]);
+const IN_PROGRESS_STATUSES = new Set(["pendente", "confirmado", "preparando", "pronto", "saiu_entrega"]);
 
 function resolveTab(searchParams) {
   const requestedTab = searchParams.get("tab")?.toLowerCase();
@@ -44,7 +45,7 @@ export default function RestaurantDashboard() {
       const hoje = new Date().toDateString();
       const pedidosHoje = orders.filter((order) => new Date(order.created_date).toDateString() === hoje);
       const faturamentoHoje = pedidosHoje.reduce((sum, order) => sum + (order.total || 0), 0);
-      const pedidosAndamento = orders.filter((order) => ["confirmado", "preparando", "pronto"].includes(order.status)).length;
+      const pedidosAndamento = orders.filter((order) => IN_PROGRESS_STATUSES.has(order.status)).length;
 
       setStats({
         totalPedidosHoje: pedidosHoje.length,
@@ -238,6 +239,7 @@ export default function RestaurantDashboard() {
                         { status: "confirmado", label: "Confirmados", color: "bg-blue-500" },
                         { status: "preparando", label: "Preparando", color: "bg-orange-500" },
                         { status: "pronto", label: "Prontos", color: "bg-purple-500" },
+                        { status: "saiu_entrega", label: "Saiu p/ Entrega", color: "bg-indigo-500" },
                         { status: "entregue", label: "Entregues", color: "bg-green-500" },
                       ].map((item) => (
                         <div
