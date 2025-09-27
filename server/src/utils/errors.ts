@@ -32,6 +32,10 @@ export function mapUnknownError(error: unknown): AppError {
     return error;
   }
 
+  if (error instanceof Error && error.message === 'Not allowed by CORS') {
+    return new AppError(403, 'CORS_NOT_ALLOWED', 'A origem desta requisição não está autorizada.');
+  }
+
   if (error instanceof Error) {
     return new AppError(500, 'INTERNAL_SERVER_ERROR', error.message);
   }

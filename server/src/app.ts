@@ -1,18 +1,35 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { type CorsOptions } from 'cors';
 import { env } from './env';
 import routes from './routes';
 import { buildErrorPayload, mapUnknownError } from './utils/errors';
+import { logger } from './lib/logger';
 
 const app = express();
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-    exposedHeaders: ['X-Total-Count', 'X-Limit', 'X-Skip'],
-  }),
-);
+const allowedOrigins = new Set(env.ALLOWED_ORIGINS);
+
+const corsOptions: CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowedOrigins.has('*') || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    logger.warn('Blocked request from unauthorized origin', { origin });
+    callback(new Error('Not allowed by CORS'), false);
+  },
+  credentials: true,
+  exposedHeaders: ['X-Total-Count', 'X-Limit', 'X-Skip'],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
@@ -25,9 +42,19 @@ app.use((req, res) => {
   res.status(404).json(buildErrorPayload('NOT_FOUND', `Endpoint ${req.method} ${req.originalUrl} not found`));
 });
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   const appError = mapUnknownError(error);
-  console.error('[Error]', error);
+  const shouldIncludeStack = env.NODE_ENV === 'development' && error instanceof Error;
+
+  logger.error('Unhandled application error', {
+    method: req.method,
+    path: req.originalUrl,
+    status: appError.status,
+    code: appError.code,
+    ...(appError.details ? { details: appError.details } : {}),
+    ...(shouldIncludeStack ? { stack: (error as Error).stack } : {}),
+  });
+
   res.status(appError.status).json(buildErrorPayload(appError.code, appError.message, appError.details));
 });
 
