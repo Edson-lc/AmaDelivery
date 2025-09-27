@@ -6,10 +6,11 @@ import { publicUserSelect } from '../utils/user';
 import { buildErrorPayload } from '../utils/errors';
 import { signAccessToken } from '../utils/auth';
 import authenticate from '../middleware/authenticate';
+import { loginRateLimiter } from '../middleware/rate-limit';
 
 const router = Router();
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', loginRateLimiter, async (req, res, next) => {
   try {
     const { email, password } = req.body ?? {};
 

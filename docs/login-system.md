@@ -18,6 +18,7 @@ O fluxo de autenticação do AmaDelivery combina um backend Express/Prisma com J
 ## Middleware e proteção de rotas
 - `authenticate` verifica o cabeçalho `Authorization`, valida o JWT com `JWT_SECRET` e anexa `req.authUser`. Falhas retornam erros estruturados (`MISSING_TOKEN`, `INVALID_AUTH_HEADER`, `INVALID_TOKEN`, `USER_NOT_FOUND`). 【F:server/src/middleware/authenticate.ts†L1-L45】
 - Todas as rotas sob `/api` (exceto `/auth`) passam pelo middleware, garantindo que operações com usuários, pedidos, entregadores etc. exijam token válido. 【F:server/src/routes/index.ts†L1-L33】
+- `loginRateLimiter` restringe o endpoint `POST /api/auth/login` a **5 tentativas por IP a cada 15 minutos**. Disparos excedidos retornam `429` com payload estruturado e cabeçalho `Retry-After`, além de gerar logs `console.warn` com o IP, caminho e janela aplicada para facilitar o monitoramento de ataques de força bruta. 【F:server/src/middleware/rate-limit.ts†L1-L33】【F:server/src/routes/auth.ts†L1-L76】
 
 ## Estado e armazenamento de sessão
 - `src/api/session.js` centraliza leitura/escrita de `{ token, user }`, incluindo *fallback* para ambientes não browser e limpeza automática de payloads corrompidos. 【F:src/api/session.js†L1-L36】
