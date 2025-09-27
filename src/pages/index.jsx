@@ -1,173 +1,65 @@
-import Layout from "./Layout.jsx";
-
-import Dashboard from "./Dashboard";
-
-import Restaurantes from "./Restaurantes";
-
-import Profile from "./Profile";
-
-import Usuarios from "./Usuarios";
-
-import Relatorios from "./Relatorios";
-
-import Pedidos from "./Pedidos";
-
-import Home from "./Home";
-
-import RestaurantMenu from "./RestaurantMenu";
-
-import Checkout from "./Checkout";
-
-import Menu from "./Menu";
-
-import MinhaConta from "./MinhaConta";
-
-import PortalEntregador from "./PortalEntregador";
-
-import CadastroEntregador from "./CadastroEntregador";
-
-import Entregadores from "./Entregadores";
-import EntregadorDetalhes from "./EntregadorDetalhes";
-
-import PainelEntregador from "./PainelEntregador";
-
-import PerfilEntregador from "./PerfilEntregador";
-
-import DefinicoesEntregador from "./DefinicoesEntregador";
-
-import EntregasRecentes from "./EntregasRecentes";
-
-import RestaurantDashboard from "./RestaurantDashboard";
-
-import DatabaseScripts from "./DatabaseScripts";
-import Login from "./Login";
-import CriarConta from "./CriarConta";
-
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useMemo } from 'react';
+import Layout from './Layout.jsx';
+import { BrowserRouter as Router, Route, Routes, useLocation, matchPath } from 'react-router-dom';
 import { appBasePath } from '@/utils';
 
-const PAGES = {
-    
-    Dashboard: Dashboard,
-    
-    Restaurantes: Restaurantes,
-    
-    Profile: Profile,
-    
-    Usuarios: Usuarios,
-    
-    Relatorios: Relatorios,
-    
-    Pedidos: Pedidos,
-    
-    Home: Home,
-    
-    RestaurantMenu: RestaurantMenu,
-    
-    Checkout: Checkout,
-    
-    Menu: Menu,
-    
-    MinhaConta: MinhaConta,
-    
-    PortalEntregador: PortalEntregador,
-    
-    CadastroEntregador: CadastroEntregador,
-    
-    Entregadores: Entregadores,
-    
-    PainelEntregador: PainelEntregador,
-    
-    PerfilEntregador: PerfilEntregador,
-    
-    DefinicoesEntregador: DefinicoesEntregador,
-    
-    EntregasRecentes: EntregasRecentes,
-    
-    RestaurantDashboard: RestaurantDashboard,
-    
-    DatabaseScripts: DatabaseScripts,
-    
-}
+const routesConfig = [
+  { path: '/', name: 'Home', Component: lazy(() => import('./Home.jsx')) },
+  { path: '/Dashboard', name: 'Dashboard', Component: lazy(() => import('./Dashboard.jsx')) },
+  { path: '/Restaurantes', name: 'Restaurantes', Component: lazy(() => import('./Restaurantes.jsx')) },
+  { path: '/Profile', name: 'Profile', Component: lazy(() => import('./Profile.jsx')) },
+  { path: '/Usuarios', name: 'Usuarios', Component: lazy(() => import('./Usuarios.jsx')) },
+  { path: '/Relatorios', name: 'Relatorios', Component: lazy(() => import('./Relatorios.jsx')) },
+  { path: '/Pedidos', name: 'Pedidos', Component: lazy(() => import('./Pedidos.jsx')) },
+  { path: '/RestaurantMenu', name: 'RestaurantMenu', Component: lazy(() => import('./RestaurantMenu.jsx')) },
+  { path: '/Checkout', name: 'Checkout', Component: lazy(() => import('./Checkout.jsx')) },
+  { path: '/Menu', name: 'Menu', Component: lazy(() => import('./Menu.jsx')) },
+  { path: '/MinhaConta', name: 'MinhaConta', Component: lazy(() => import('./MinhaConta.jsx')) },
+  { path: '/PortalEntregador', name: 'PortalEntregador', Component: lazy(() => import('./PortalEntregador.jsx')) },
+  { path: '/CadastroEntregador', name: 'CadastroEntregador', Component: lazy(() => import('./CadastroEntregador.jsx')) },
+  { path: '/Entregadores', name: 'Entregadores', Component: lazy(() => import('./Entregadores.jsx')) },
+  { path: '/Entregadores/:id', name: 'Entregadores', Component: lazy(() => import('./EntregadorDetalhes.jsx')) },
+  { path: '/PainelEntregador', name: 'PainelEntregador', Component: lazy(() => import('./PainelEntregador.jsx')) },
+  { path: '/PerfilEntregador', name: 'PerfilEntregador', Component: lazy(() => import('./PerfilEntregador.jsx')) },
+  { path: '/DefinicoesEntregador', name: 'DefinicoesEntregador', Component: lazy(() => import('./DefinicoesEntregador.jsx')) },
+  { path: '/EntregasRecentes', name: 'EntregasRecentes', Component: lazy(() => import('./EntregasRecentes.jsx')) },
+  { path: '/RestaurantDashboard', name: 'RestaurantDashboard', Component: lazy(() => import('./RestaurantDashboard.jsx')) },
+  { path: '/DatabaseScripts', name: 'DatabaseScripts', Component: lazy(() => import('./DatabaseScripts.jsx')) },
+  { path: '/Login', name: 'Login', Component: lazy(() => import('./Login.jsx')) },
+  { path: '/CriarConta', name: 'CriarConta', Component: lazy(() => import('./CriarConta.jsx')) },
+];
 
-function _getCurrentPage(url) {
-    if (url.endsWith('/')) {
-        url = url.slice(0, -1);
-    }
-    let urlLastPart = url.split('/').pop();
-    if (urlLastPart.includes('?')) {
-        urlLastPart = urlLastPart.split('?')[0];
-    }
-
-    const pageName = Object.keys(PAGES).find(page => page.toLowerCase() === urlLastPart.toLowerCase());
-    return pageName || 'Home';
-}
-
-// Create a wrapper component that uses useLocation inside the Router context
 function PagesContent() {
-    const location = useLocation();
-    const currentPage = _getCurrentPage(location.pathname);
-    
-    return (
-        <Layout currentPageName={currentPage}>
-            <Routes>            
-                
-                    <Route path="/" element={<Home />} />
-                
-                
-                <Route path="/Dashboard" element={<Dashboard />} />
-                
-                <Route path="/Restaurantes" element={<Restaurantes />} />
-                
-                <Route path="/Profile" element={<Profile />} />
-                
-                <Route path="/Usuarios" element={<Usuarios />} />
-                
-                <Route path="/Relatorios" element={<Relatorios />} />
-                
-                <Route path="/Pedidos" element={<Pedidos />} />
-                
-                <Route path="/Home" element={<Home />} />
-                
-                <Route path="/RestaurantMenu" element={<RestaurantMenu />} />
-                
-                <Route path="/Checkout" element={<Checkout />} />
-                
-                <Route path="/Menu" element={<Menu />} />
-                
-                <Route path="/MinhaConta" element={<MinhaConta />} />
-                
-                <Route path="/PortalEntregador" element={<PortalEntregador />} />
-                
-                <Route path="/CadastroEntregador" element={<CadastroEntregador />} />
-                
-                <Route path="/Entregadores" element={<Entregadores />} />
-                <Route path="/Entregadores/:id" element={<EntregadorDetalhes />} />
-                
-                <Route path="/PainelEntregador" element={<PainelEntregador />} />
-                
-                <Route path="/PerfilEntregador" element={<PerfilEntregador />} />
-                
-                <Route path="/DefinicoesEntregador" element={<DefinicoesEntregador />} />
-                
-                <Route path="/EntregasRecentes" element={<EntregasRecentes />} />
-                
-                <Route path="/RestaurantDashboard" element={<RestaurantDashboard />} />
-                
-                <Route path="/DatabaseScripts" element={<DatabaseScripts />} />
-                <Route path="/Login" element={<Login />} />
-                <Route path="/CriarConta" element={<CriarConta />} />
-                
-            </Routes>
-        </Layout>
-    );
+  const location = useLocation();
+
+  const currentRoute = useMemo(() => {
+    for (const route of routesConfig) {
+      const match = matchPath({ path: route.path, caseSensitive: false, end: route.path === '/' }, location.pathname);
+      if (match) {
+        return route;
+      }
+    }
+    return routesConfig[0];
+  }, [location.pathname]);
+
+  return (
+    <Layout currentPageName={currentRoute?.name ?? 'Home'}>
+      <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Carregando…</div>}>
+        <Routes>
+          {routesConfig.map(({ path, Component }) => (
+            <Route key={path} path={path} element={<Component />} />
+          ))}
+        </Routes>
+      </Suspense>
+    </Layout>
+  );
 }
 
 export default function Pages() {
-    return (
-        <Router basename={appBasePath || undefined}>
-            <PagesContent />
-        </Router>
-    );
+  return (
+    <Router basename={appBasePath || undefined}>
+      <PagesContent />
+    </Router>
+  );
 }
 

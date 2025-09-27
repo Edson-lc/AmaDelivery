@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import prisma from '../lib/prisma';
-import { extractTokenFromHeader, verifyAccessToken } from '../utils/auth';
+import { extractAccessToken, verifyAccessToken } from '../utils/auth';
 import { AppError, buildErrorPayload } from '../utils/errors';
 import { publicUserSelect } from '../utils/user';
 
@@ -16,7 +16,7 @@ declare module 'express-serve-static-core' {
 
 export default async function authenticate(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = extractTokenFromHeader(req.headers.authorization);
+    const token = extractAccessToken(req);
     const payload = verifyAccessToken(token);
 
     const user = await prisma.user.findUnique({
@@ -35,6 +35,8 @@ export default async function authenticate(req: Request, res: Response, next: Ne
     next();
   } catch (error) {
     const appError = error instanceof AppError ? error : new AppError(401, 'INVALID_TOKEN', 'Token inválido ou expirado.');
-    res.status(appError.status).json(buildErrorPayload(appError.code, appError.message));
+    res
+      .status(appError.status)
+      .json(buildErrorPayload(appError.code, appError.message, undefined, res.locals.requestId));
   }
 }

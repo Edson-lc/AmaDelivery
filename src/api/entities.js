@@ -94,13 +94,24 @@ export const AlteracaoPerfil = createEntityClient('alteracoes-perfil');
 export const User = {
   async me() {
     const currentAuth = readAuth();
-    if (!currentAuth?.token) {
-      return null;
+    if (currentAuth?.expiresAt && currentAuth.expiresAt < Date.now()) {
+      clearAuth();
     }
     try {
       const data = await apiRequest('/auth/me');
-      const user = normalizeResponse(data);
-      writeAuth({ ...currentAuth, user });
+      const { expiresAt, expires_at: snakeExpiresAt, ...rest } = data ?? {};
+      const user = normalizeResponse(rest);
+      const expiresAtValue =
+        typeof expiresAt === 'number'
+          ? expiresAt
+          : typeof snakeExpiresAt === 'number'
+            ? snakeExpiresAt
+            : currentAuth?.expiresAt;
+      const nextAuth = {
+        user,
+        ...(typeof expiresAtValue === 'number' ? { expiresAt: expiresAtValue } : {}),
+      };
+      writeAuth(nextAuth);
       return user;
     } catch (error) {
       if (error?.status === 401) {
@@ -177,14 +188,21 @@ export const User = {
         method: 'POST',
         body: normalizedCreds,
       });
-      const normalized = normalizeResponse(data);
-      const userPayload = normalized?.user ?? normalized?.data?.user;
-      const user = userPayload ? normalizeResponse(userPayload) : null;
-      const token = normalized?.token ?? data?.token;
-      if (!user || !token) {
+      const { user: rawUser, data: nested, expiresAt, expires_at: snakeExpiresAt } = data ?? {};
+      const userPayload = rawUser ?? nested?.user ?? rawUser;
+      const user = userPayload ? normalizeResponse(userPayload) : normalizeResponse(data);
+      if (!user) {
         throw new Error('Resposta de autenticação incompleta.');
       }
-      writeAuth({ user, token });
+      const nextAuth = {
+        user,
+        ...(typeof expiresAt === 'number'
+          ? { expiresAt }
+          : typeof snakeExpiresAt === 'number'
+            ? { expiresAt: snakeExpiresAt }
+            : {}),
+      };
+      writeAuth(nextAuth);
       return user;
     } catch (error) {
       if (error?.status === 401 || error?.status === 403) {
