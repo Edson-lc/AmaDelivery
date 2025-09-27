@@ -89,6 +89,14 @@ export const Customer = createEntityClient('customers');
 export const Entregador = createEntityClient('entregadores');
 export const Delivery = createEntityClient('deliveries');
 export const AlteracaoPerfil = createEntityClient('alteracoes-perfil');
+export const Payment = {
+  async createIntent(payload) {
+    return apiRequest('/payments/intent', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+};
 
 const USER_STORAGE_KEY = 'amaeats_user';
 

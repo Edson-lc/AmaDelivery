@@ -9,6 +9,7 @@ import deliveriesRouter from './deliveries';
 import alteracoesPerfilRouter from './alteracoes-perfil';
 import usersRouter from './users';
 import authRouter from './auth';
+import paymentsRouter from './payments';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/deliveries', deliveriesRouter);
 router.use('/alteracoes-perfil', alteracoesPerfilRouter);
 router.use('/users', usersRouter);
 router.use('/auth', authRouter);
+router.use('/payments', paymentsRouter);
 
 export default router;

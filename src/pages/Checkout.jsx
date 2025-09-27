@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Cart, Restaurant, Order, Customer, User } from "@/api/entities";
+import React, { useState, useEffect, useCallback, useRef, useImperativeHandle } from "react";
+import { Cart, Restaurant, Order, Customer, User, Payment } from "@/api/entities";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,19 +8,80 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  ArrowLeft, 
-  MapPin, 
-  CreditCard, 
-  Phone, 
+import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import {
+  ArrowLeft,
+  MapPin,
+  CreditCard,
   User as UserIcon, // Renamed to avoid conflict with User entity
   ShoppingBag,
   Clock,
   CheckCircle,
-  Loader2 // Added for loading indicator
+  Loader2, // Added for loading indicator
+  AlertCircle
 } from "lucide-react";
+
+const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+  : null;
+
+const CardPaymentForm = React.forwardRef(({ onError }, ref) => {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [localError, setLocalError] = useState("");
+
+  useImperativeHandle(ref, () => async () => {
+    if (!stripe || !elements) {
+      const message = "Pagamento indisponível no momento. Tente novamente.";
+      setLocalError(message);
+      onError?.(message);
+      return { success: false, error: message };
+    }
+
+    setLocalError("");
+
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: window.location.href,
+      },
+      redirect: "if_required",
+    });
+
+    if (error) {
+      const message = error.message ?? "Não foi possível confirmar o pagamento.";
+      setLocalError(message);
+      onError?.(message);
+      return { success: false, error: message };
+    }
+
+    if (!paymentIntent) {
+      const message = "Resposta de pagamento inválida. Tente novamente.";
+      setLocalError(message);
+      onError?.(message);
+      return { success: false, error: message };
+    }
+
+    onError?.("");
+    return { success: true, paymentIntent };
+  });
+
+  return (
+    <div className="space-y-3">
+      <PaymentElement />
+      {localError && (
+        <p className="text-sm text-red-500 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4" />
+          {localError}
+        </p>
+      )}
+    </div>
+  );
+});
+
+CardPaymentForm.displayName = "CardPaymentForm";
 
 export default function CheckoutPage() {
   const [cart, setCart] = useState(null);
@@ -45,6 +106,22 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [clientSecret, setClientSecret] = useState(null);
+  const [paymentIntentAmount, setPaymentIntentAmount] = useState(null);
+  const [paymentIntentId, setPaymentIntentId] = useState(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [isCreatingPaymentIntent, setIsCreatingPaymentIntent] = useState(false);
+
+  const cardPaymentRef = useRef(null);
+
+  useEffect(() => {
+    if (paymentMethod !== "cartao_credito") {
+      setClientSecret(null);
+      setPaymentIntentAmount(null);
+      setPaymentIntentId(null);
+      setPaymentError("");
+    }
+  }, [paymentMethod]);
 
   const urlParams = new URLSearchParams(window.location.search);
   const restaurantId = urlParams.get('restaurant');
@@ -119,27 +196,86 @@ export default function CheckoutPage() {
   }, [loadCheckoutData]);
 
   // Helper function to calculate total for a single item
-  const calculateItemTotal = (item) => {
+  const calculateItemTotal = useCallback((item) => {
     let total = item.preco_unitario * item.quantidade;
-    
+
     if (item.adicionais_selecionados && item.adicionais_selecionados.length > 0) {
       const adicionaisTotal = item.adicionais_selecionados.reduce((sum, add) => sum + (add.preco || 0), 0);
       total += adicionaisTotal * item.quantidade;
     }
 
     return total;
-  };
+  }, []);
 
-  const calculateTotal = () => {
+  const calculateTotal = useCallback(() => {
     if (!cart || !restaurant || !cart.itens) return 0;
-    
+
     // Calculate subtotal by summing up calculateItemTotal for all items
     const subtotal = cart.itens.reduce((sum, item) => sum + calculateItemTotal(item), 0);
     const taxaEntrega = restaurant.taxa_entrega || 0;
     const taxaServico = subtotal * 0.02; // 2% taxa de serviço
-    
+
     return subtotal + taxaEntrega + taxaServico;
-  };
+  }, [cart, restaurant, calculateItemTotal]);
+
+  useEffect(() => {
+    if (paymentMethod !== "cartao_credito") {
+      setPaymentError("");
+      return;
+    }
+
+    if (!stripePromise) {
+      setPaymentError("Configuração do Stripe ausente. Contacte o suporte.");
+      return;
+    }
+
+    if (!cart || !restaurant || !cart.itens || cart.itens.length === 0) {
+      return;
+    }
+
+    const amountInCents = Math.round(calculateTotal() * 100);
+
+    if (!amountInCents) {
+      return;
+    }
+
+    if (clientSecret && paymentIntentAmount === amountInCents) {
+      return;
+    }
+
+    let isMounted = true;
+    setIsCreatingPaymentIntent(true);
+
+    Payment.createIntent({
+      amount: amountInCents,
+      currency: "eur",
+      customerEmail: customerData.email || undefined,
+      metadata: {
+        cartId: cart.id,
+        restaurantId: cart.restaurant_id,
+      },
+    })
+      .then((response) => {
+        if (!isMounted) return;
+        setClientSecret(response?.clientSecret ?? null);
+        setPaymentIntentAmount(response?.amount ?? amountInCents);
+        setPaymentIntentId(response?.paymentIntentId ?? null);
+        setPaymentError("");
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        console.error("Erro ao iniciar pagamento:", error);
+        setPaymentError(error?.message || "Não foi possível iniciar o pagamento.");
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setIsCreatingPaymentIntent(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [paymentMethod, cart, restaurant, calculateTotal, clientSecret, paymentIntentAmount, customerData.email]);
 
   const handleInputChange = (field, value) => {
     if (field.includes('.')) {
@@ -160,13 +296,44 @@ export default function CheckoutPage() {
   };
 
   const processOrder = async () => {
+    setPaymentError("");
     setIsProcessing(true);
+
+    let paymentIntentResult = null;
+
+    if (paymentMethod === "cartao_credito") {
+      if (isCreatingPaymentIntent) {
+        setPaymentError("Aguarde enquanto preparamos o pagamento.");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!clientSecret) {
+        setPaymentError("Não foi possível iniciar o pagamento. Atualize a página e tente novamente.");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!cardPaymentRef.current) {
+        setPaymentError("Formulário de pagamento indisponível.");
+        setIsProcessing(false);
+        return;
+      }
+
+      paymentIntentResult = await cardPaymentRef.current();
+
+      if (!paymentIntentResult?.success) {
+        setPaymentError(paymentIntentResult?.error || "Não foi possível confirmar o pagamento.");
+        setIsProcessing(false);
+        return;
+      }
+    }
 
     try {
       // 1. Criar ou atualizar cliente
       let customer;
       const existingCustomers = await Customer.filter({ telefone: customerData.telefone });
-      
+
       if (existingCustomers.length > 0) {
         customer = existingCustomers[0];
         await Customer.update(customer.id, {
@@ -189,9 +356,18 @@ export default function CheckoutPage() {
 
       // 2. Criar pedido
       const numeroWer = `#${Date.now().toString().slice(-8)}`; // Simplified order number generation
-      
+
       // Calculate subtotal from item totals for the order object
       const orderSubtotal = cart.itens.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+
+      const paymentIntent = paymentIntentResult?.paymentIntent;
+      const pagamentoStatus = paymentMethod === "cartao_credito"
+        ? paymentIntent?.status === "succeeded"
+          ? "pago"
+          : paymentIntent?.status || "pendente"
+        : paymentMethod === "dinheiro"
+          ? "pendente"
+          : "pendente";
 
       const orderData = {
         customer_id: customer.id,
@@ -217,6 +393,10 @@ export default function CheckoutPage() {
         taxa_servico: orderSubtotal * 0.02, // Calculate service fee based on actual subtotal
         total: calculateTotal(),
         forma_pagamento: paymentMethod,
+        pagamento_status: pagamentoStatus,
+        pagamento_id: paymentMethod === "cartao_credito"
+          ? paymentIntent?.id || paymentIntentId || undefined
+          : undefined,
         observacoes_cliente: customerData.observacoes,
         status: "confirmado", // Directly set status to "confirmado"
         tempo_estimado_preparo: restaurant.tempo_preparo || 30,
@@ -224,13 +404,16 @@ export default function CheckoutPage() {
       };
 
       const newOrder = await Order.create(orderData);
-      
+
       // 3. Limpar carrinho
       await Cart.update(cart.id, { itens: [], subtotal: 0 }); // Subtotal can be reset or updated based on new cart items
 
+      if (paymentIntent?.id) {
+        setPaymentIntentId(paymentIntent.id);
+      }
       setOrderId(numeroWer);
       setOrderComplete(true);
-      
+
     } catch (error) {
       console.error("Erro ao processar pedido:", error);
       alert("Erro ao processar pedido. Tente novamente.");
@@ -542,9 +725,45 @@ export default function CheckoutPage() {
                   Tempo estimado: {(restaurant?.tempo_preparo || 30) + 30} min
                 </div>
 
+                {paymentMethod === "cartao_credito" && (
+                  <div className="space-y-3">
+                    {isCreatingPaymentIntent && (
+                      <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Preparando pagamento seguro...</span>
+                      </div>
+                    )}
+                    {!isCreatingPaymentIntent && clientSecret && stripePromise && (
+                      <Elements stripe={stripePromise} options={{ clientSecret }}>
+                        <CardPaymentForm ref={cardPaymentRef} onError={setPaymentError} />
+                      </Elements>
+                    )}
+                    {!isCreatingPaymentIntent && (!stripePromise || !clientSecret) && (
+                      <p className="text-sm text-red-500 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        Não foi possível carregar o formulário de pagamento. Atualize a página.
+                      </p>
+                    )}
+                    {paymentError && (
+                      <p className="text-sm text-red-500 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        {paymentError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <Button
                   onClick={processOrder}
-                  disabled={isProcessing || !customerData.nome || !customerData.telefone || !customerData.endereco.rua || !customerData.endereco.numero || !customerData.endereco.bairro}
+                  disabled={
+                    isProcessing ||
+                    !customerData.nome ||
+                    !customerData.telefone ||
+                    !customerData.endereco.rua ||
+                    !customerData.endereco.numero ||
+                    !customerData.endereco.bairro ||
+                    (paymentMethod === "cartao_credito" && (!clientSecret || isCreatingPaymentIntent))
+                  }
                   className="w-full bg-orange-500 hover:bg-orange-600"
                   size="lg"
                 >
