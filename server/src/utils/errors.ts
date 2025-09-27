@@ -17,12 +17,18 @@ export class AppError extends Error {
   }
 }
 
-export function buildErrorPayload(code: string, message: string, details?: unknown): { error: ErrorPayload } {
+export function buildErrorPayload(
+  code: string,
+  message: string,
+  details?: unknown,
+  requestId?: string,
+): { error: ErrorPayload & { requestId?: string } } {
   return {
     error: {
       code,
       message,
       ...(details === undefined ? {} : { details }),
+      ...(requestId ? { requestId } : {}),
     },
   };
 }
